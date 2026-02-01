@@ -2,12 +2,18 @@ const mongoose = require('mongoose');
 
 const InvestmentSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  plan: { type: mongoose.Schema.Types.ObjectId, ref: 'Plan', required: true },
+
+  plan: { 
+    name: { type: String, required: true },
+    price: { type: Number, required: true },
+    returnPercentage: { type: Number, required: true },
+    dailyItems: { type: Number, required: true }
+  },
   
   // Money Tracking
   investedAmount: { type: Number, required: true },
-  expectedProfit: { type: Number, required: true }, // Calculated at start
-  accumulatedReturn: { type: Number, default: 0 }, // Updates daily
+  expectedProfit: { type: Number, required: true },
+  accumulatedReturn: { type: Number, default: 0 },
   
   // Inventory Simulation
   totalStock: { type: Number, required: true },

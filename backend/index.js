@@ -14,13 +14,34 @@ app.use(cors({
     credentials: true
 }));
 
-// Database Connection
-// Note: In serverless, we must ensure we don't open too many connections
-if (!mongoose.connection.readyState) {
-    mongoose.connect(process.env.MONGO_URI)
-      .then(() => console.log('✅ MongoDB Connected'))
-      .catch(err => console.log('❌ DB Connection Error:', err));
-}
+// --- DATABASE CONNECTION (Serverless-friendly) ---
+// In Vercel serverless, mongoose.connect() is async but requests run immediately.
+// Without awaiting, queries buffer and time out. This middleware ensures we're
+// connected before any route handler runs. Connection is cached across warm invocations.
+const connectDB = async () => {
+  if (mongoose.connection.readyState === 1) return mongoose.connection;
+  if (!process.env.MONGO_URI) {
+    throw new Error('MONGO_URI environment variable is not set');
+  }
+  return mongoose.connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 10000,
+    bufferCommands: false,
+  }).then(() => {
+    console.log('✅ MongoDB Connected');
+    return mongoose.connection;
+  });
+};
+
+// Ensure DB is connected before any API route runs
+app.use('/api', async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('❌ DB Connection Error:', err);
+    res.status(500).json({ msg: 'Database connection failed' });
+  }
+});
 
 // --- ROUTES ---
 app.get('/', (req, res) => res.send('ResellHub API Running')); // Health Check
