@@ -851,7 +851,7 @@ export default function AdminDashboard() {
                               </div>
                               <div>
                                   <p className="text-xs text-slate-400">Phone</p>
-                                  <p className="text-sm font-medium text-slate-700">{selectedOrder.user?.phoneNumber || 'N/A'}</p>
+                                  <p className="text-sm font-medium text-slate-700">{selectedOrder.user?.phone || 'N/A'}</p>
                               </div>
                           </div>
                       </div>
