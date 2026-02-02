@@ -2,77 +2,56 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-// Import ALL models so we can delete them
-const Plan = require('./models/Plan');
+// Import User Model only (We don't need the others since we aren't wiping them)
 const User = require('./models/User');
-const Investment = require('./models/Investment');
-const Transaction = require('./models/Transaction');
+
+// Check for required environment variables
+if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
+  console.error("❌ ERROR: Please set ADMIN_EMAIL and ADMIN_PASSWORD in your .env file.");
+  process.exit(1);
+}
 
 mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
-    console.log('🔥 Connected to DB. PERTFORMING FULL WIPE...');
+    console.log('🔥 Connected to DB.');
 
-    // --- 1. CLEAR ALL DATA (The "Hard Reset") ---
-    await User.deleteMany({});
-    await Plan.deleteMany({});
-    await Investment.deleteMany({});
-    await Transaction.deleteMany({});
-    console.log('🗑️  Database Cleared Completely');
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPass = process.env.ADMIN_PASSWORD;
+    const adminPhone = process.env.ADMIN_PHONE || '0000000000';
 
-    // --- 2. SEED PLANS ---
-    const plans = [
-      {
-        name: "Starter",
-        price: 50000,
-        returnPercentage: 4,
-        totalItems: 30,
-        dailyMinSales: 1,
-        dailyMaxSales: 1
-      },
-      {
-        name: "Growth",
-        price: 100000,
-        returnPercentage: 4.5,
-        totalItems: 35,
-        dailyMinSales: 1,
-        dailyMaxSales: 2
-      },
-      {
-        name: "Premium",
-        price: 200000,
-        returnPercentage: 5,
-        totalItems: 40,
-        dailyMinSales: 1,
-        dailyMaxSales: 2
-      }
-    ];
+    // --- 1. RESET ADMIN ACCOUNT ONLY ---
+    // We look for an existing user with this email and delete it to ensure a clean slate
+    const deletedAdmin = await User.deleteOne({ email: adminEmail });
+    
+    if (deletedAdmin.deletedCount > 0) {
+      console.log(`🗑️  Old Admin account (${adminEmail}) found and deleted.`);
+    } else {
+      console.log(`ℹ️  No existing Admin found with email ${adminEmail}. Creating new one...`);
+    }
 
-    await Plan.insertMany(plans);
-    console.log('✅ Plans Created');
-
-    // --- 3. CREATE ADMIN USER ---
-    const password = 'admin123';
+    // --- 2. CREATE NEW ADMIN ---
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(adminPass, salt);
 
-    const adminUser = new User({
+    const newAdmin = new User({
       name: 'Super Admin',
-      email: 'admin@resellhub.com',
-      password: hashedPassword, // <--- FIXED: Using the HASHED password now
-      phone: '0000000000',
+      email: adminEmail,
+      password: hashedPassword,
+      phone: adminPhone,
       role: 'admin',
       walletBalance: 0,
-      referralCode: 'ADMIN'
+      referralCode: 'ADMIN' // Keeps the referral code constant
     });
 
-    await adminUser.save();
-    console.log('✅ Admin User Created');
-    console.log('   Email: admin@resellhub.com');
-    console.log('   Pass:  admin123');
+    await newAdmin.save();
+    
+    console.log('✅ Admin Account Synced with .env');
+    console.log(`   Email: ${adminEmail}`);
+    console.log(`   Pass:  [HIDDEN] (Set in .env)`);
 
     process.exit();
   })
   .catch(err => {
-    console.error(err);
+    console.error('❌ Script Failed:', err);
     process.exit(1);
   });

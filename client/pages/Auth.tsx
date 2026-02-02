@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TrendingUp, Loader2, AlertCircle } from 'lucide-react';
+import { TrendingUp, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  
+  // New States for Password UX
+  const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [formData, setFormData] = useState({
     name: '',
@@ -28,6 +32,13 @@ export default function AuthPage() {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+
+    // --- VALIDATION: Check Passwords Match ---
+    if (!isLogin && formData.password !== confirmPassword) {
+        setError("Passwords do not match.");
+        setIsLoading(false);
+        return;
+    }
 
     const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
 
@@ -95,7 +106,7 @@ export default function AuthPage() {
           </div>
 
           {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg flex items-center gap-2 text-sm border border-red-100">
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg flex items-center gap-2 text-sm border border-red-100 animate-in fade-in slide-in-from-top-2">
               <AlertCircle className="w-4 h-4" /> {error}
             </div>
           )}
@@ -128,13 +139,51 @@ export default function AuthPage() {
               />
             </div>
 
+            {/* PASSWORD FIELD WITH TOGGLE */}
             <div className="space-y-2">
               <Label>Password</Label>
-              <Input 
-                type="password" placeholder="••••••••" required
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-              />
+              <div className="relative">
+                <Input 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="••••••••" 
+                  required
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  className="pr-10" // Make room for icon
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
+
+            {/* CONFIRM PASSWORD (SIGNUP ONLY) */}
+            {!isLogin && (
+                <div className="space-y-2">
+                <Label>Confirm Password</Label>
+                <div className="relative">
+                    <Input 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="••••••••" 
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="pr-10"
+                    />
+                    {/* Reuse the same toggle state for better UX */}
+                    <button 
+                        type="button" 
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                </div>
+                </div>
+            )}
 
             {!isLogin && (
               <div className="space-y-2">
@@ -156,7 +205,7 @@ export default function AuthPage() {
             <p className="text-sm text-slate-500">
               {isLogin ? "Don't have an account?" : "Already have an account?"}
               <button 
-                onClick={() => { setIsLogin(!isLogin); setError(""); }}
+                onClick={() => { setIsLogin(!isLogin); setError(""); setConfirmPassword(""); }}
                 className="ml-2 font-semibold text-emerald-600 hover:underline"
               >
                 {isLogin ? 'Sign Up' : 'Log In'}

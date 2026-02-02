@@ -4,6 +4,7 @@ const auth = require('../middleware/authMiddleware');
 const admin = require('../middleware/adminMiddleware');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
+const Order = require('../models/Order');
 const { sendWithdrawalApprovedEmail } = require('../utils/emailService'); // <--- ADDED IMPORT
 
 // @route   GET api/admin/stats
@@ -144,4 +145,52 @@ router.get('/transactions', [auth, admin], async (req, res) => {
     res.status(500).send('Server Error');
   }
 });
+
+// @route   GET api/admin/orders
+// @desc    Get ALL orders from ALL users (Newest first)
+// @access  Private (Admin only)
+router.get('/orders', auth, async (req, res) => {
+    try {
+        // Fetch all orders and populate user details (Name, Email, Phone)
+        const orders = await Order.find()
+            .populate('user', ['name', 'email', 'phoneNumber']) 
+            .sort({ createdAt: -1 }); // Sort by newest first
+
+        res.json(orders);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
+// @route   PUT api/admin/orders/:id
+// @desc    Update order status (e.g. Processing -> Delivered)
+// @access  Private (Admin only)
+router.put('/orders/:id', auth, async (req, res) => {
+    const { status } = req.body;
+
+    try {
+        let order = await Order.findById(req.params.id);
+
+        if (!order) {
+            return res.status(404).json({ msg: 'Order not found' });
+        }
+
+        // Update the status
+        order.status = status;
+        await order.save();
+
+        // (Optional) You could send a notification to the user here
+        // createNotification(order.user, `Your order for ${order.productName} is now ${status}`);
+
+        // Return the updated order with user details populated so the UI updates instantly
+        await order.populate('user', ['name', 'email', 'phoneNumber']);
+        
+        res.json(order);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
 module.exports = router;
