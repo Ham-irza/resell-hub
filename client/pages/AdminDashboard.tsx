@@ -124,7 +124,9 @@ export default function AdminDashboard() {
   const [visibleCount, setVisibleCount] = useState(10); 
   
   // Inventory Form State
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', quantity: '', description: '', image: '' });
+    const [newProduct, setNewProduct] = useState({ name: '', price: '', quantity: '', description: '', image: '', roi: '', trendy: false, stores: [], tier: 1 });
+    const [stores, setStores] = useState<any[]>([]);
+    const [newStoreName, setNewStoreName] = useState('');
 
   const [, setLocation] = useLocation();
 
@@ -161,6 +163,13 @@ export default function AdminDashboard() {
       if(prodRes.ok) {
           const prodData = await prodRes.json();
           setProducts(Array.isArray(prodData) ? prodData : []);
+      }
+
+      // 4. Admin Stores
+      const storesRes = await fetch('/api/admin/stores', { headers: { 'x-auth-token': token } });
+      if (storesRes.ok) {
+          const storesData = await storesRes.json();
+          setStores(Array.isArray(storesData) ? storesData : []);
       }
 
       // 4. Orders (NEW)
@@ -249,10 +258,18 @@ export default function AdminDashboard() {
         const res = await fetch('/api/products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-auth-token': token || '' },
-            body: JSON.stringify(newProduct)
+                        body: JSON.stringify({
+                                ...newProduct,
+                                price: Number(newProduct.price),
+                                quantity: Number(newProduct.quantity),
+                                roi: Number(newProduct.roi) || 0,
+                                tier: Number(newProduct.tier) || 1,
+                                trendy: !!newProduct.trendy,
+                                stores: Array.isArray(newProduct.stores) ? newProduct.stores : []
+                        })
         });
         if(res.ok) {
-            setNewProduct({ name: '', price: '', quantity: '', description: '', image: '' });
+            setNewProduct({ name: '', price: '', quantity: '', description: '', image: '', roi: '', trendy: false, stores: [], tier: 1 });
             loadData(); 
             toast({
               title: "Product Added",
@@ -266,6 +283,33 @@ export default function AdminDashboard() {
         console.error(err); 
     }
   };
+
+    const handleAddStore = async () => {
+        const token = localStorage.getItem('token');
+        if (!newStoreName.trim()) return;
+        try {
+            const res = await fetch('/api/admin/stores', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-auth-token': token || '' },
+                body: JSON.stringify({ name: newStoreName })
+            });
+            if (res.ok) {
+                setNewStoreName('');
+                loadData();
+                toast({ title: 'Store added' });
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleDeleteStore = async (id: string) => {
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`/api/admin/stores/${id}`, { method: 'DELETE', headers: { 'x-auth-token': token || '' } });
+            if (res.ok) { loadData(); toast({ title: 'Store removed' }); }
+        } catch (err) { console.error(err); }
+    };
 
   // --- DELETE CONFIRMATION LOGIC ---
   const initiateDelete = (id: string) => {
@@ -389,6 +433,29 @@ export default function AdminDashboard() {
                     <StatCard title="Pending Withdrawals" value={`PKR ${stats.pendingWithdrawals.toLocaleString()}`} color="text-amber-600" />
                     <StatCard title="Total Payouts" value={`PKR ${(stats.totalPayouts/1000000).toFixed(1)}M`} color="text-emerald-700" />
                 </div>
+
+                {/* -- Store Management -- */}
+                <div className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm h-fit">
+                    <h3 className="text-lg font-bold mb-4">Manage Stores</h3>
+                    <div className="flex gap-2 mb-4">
+                        <input value={newStoreName} onChange={e => setNewStoreName(e.target.value)} placeholder="New store name" className="flex-1 p-2 border border-slate-200 rounded-md" />
+                        <Button onClick={handleAddStore} className="bg-emerald-600 hover:bg-emerald-700 text-white">Add</Button>
+                    </div>
+                    <div className="space-y-2">
+                        {stores.length === 0 ? (
+                            <p className="text-sm text-slate-400">No stores configured.</p>
+                        ) : (
+                            stores.map(s => (
+                                <div key={s._id} className="flex items-center justify-between p-2 border rounded">
+                                    <div>{s.name}</div>
+                                    <div className="flex gap-2">
+                                        <Button size="sm" variant="outline" onClick={() => handleDeleteStore(s._id)}>Delete</Button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
                 
                 <div className="bg-white border border-emerald-100 rounded-xl p-8 text-center shadow-sm">
                     <h3 className="text-xl font-bold text-slate-800 mb-2">Welcome Back, Admin</h3>
@@ -495,9 +562,37 @@ export default function AdminDashboard() {
                                 onChange={e => setNewProduct({...newProduct, description: e.target.value})} 
                             />
                         </div>
-                        <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
-                            Create Product
-                        </Button>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="text-xs font-semibold text-slate-500 uppercase">ROI (%)</label>
+                                                        <input className="w-full p-2 border border-slate-200 rounded-md" type="number" value={newProduct.roi} onChange={e => setNewProduct({...newProduct, roi: e.target.value})} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-semibold text-slate-500 uppercase">Tier</label>
+                                                        <select className="w-full p-2 border border-slate-200 rounded-md" value={newProduct.tier} onChange={e => setNewProduct({...newProduct, tier: Number(e.target.value)})}>
+                                                            <option value={1}>1 - Starter</option>
+                                                            <option value={2}>2 - Growth</option>
+                                                            <option value={3}>3 - Premium</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-4 mt-3">
+                                                    <label className="flex items-center gap-2 text-sm">
+                                                        <input type="checkbox" checked={!!newProduct.trendy} onChange={e => setNewProduct({...newProduct, trendy: e.target.checked})} />
+                                                        <span className="text-sm text-slate-600">Mark as trendy</span>
+                                                    </label>
+                                                    <div className="flex-1">
+                                                        <label className="text-xs font-semibold text-slate-500 uppercase">Available Stores</label>
+                                                        <select multiple className="w-full p-2 border border-slate-200 rounded-md h-28" value={newProduct.stores} onChange={e => setNewProduct({...newProduct, stores: Array.from(e.target.selectedOptions, o => o.value)})}>
+                                                            {stores.map(s => (<option key={s._id} value={s._id}>{s.name}</option>))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                                                        Create Product
+                                                </Button>
                     </form>
                 </div>
 
@@ -594,7 +689,7 @@ export default function AdminDashboard() {
                                         <td className="px-6 py-4 font-bold text-emerald-700">PKR {order.totalAmount.toLocaleString()}</td>
                                         <td className="px-6 py-4">
                                             <span className={`px-3 py-1 rounded-full text-xs font-medium border capitalize ${
-                                                order.status === 'delivered' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                order.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                                 order.status === 'cancelled' ? 'bg-red-50 text-red-700 border-red-200' :
                                                 'bg-amber-50 text-amber-700 border-amber-200'
                                             }`}>
@@ -870,11 +965,11 @@ export default function AdminDashboard() {
                                   Processing
                               </Button>
                               <Button 
-                                  className={`flex-1 ${selectedOrder.status === 'delivered' ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
-                                  onClick={() => handleOrderStatus(selectedOrder._id, 'delivered')}
-                                  disabled={selectedOrder.status === 'delivered'}
+                                  className={`flex-1 ${selectedOrder.status === 'approved' ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                  onClick={() => handleOrderStatus(selectedOrder._id, 'approved')}
+                                  disabled={selectedOrder.status === 'approved'}
                               >
-                                  Delivered
+                                  Approved
                               </Button>
                           </div>
                       </div>

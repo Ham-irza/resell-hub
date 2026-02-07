@@ -18,14 +18,34 @@ export default function AuthPage() {
     email: '',
     phone: '',
     password: '',
-    referralCode: ''
+    referralCode: '',
+    store: 'none'
   });
+
+  const [stores, setStores] = useState<any[]>([]);
 
   // Check URL for referral code (e.g. ?ref=ali123)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ref = params.get('ref');
     if (ref) setFormData(prev => ({ ...prev, referralCode: ref }));
+  }, []);
+
+  useEffect(() => {
+    const fetchStores = async () => {
+      try {
+        const res = await fetch('/api/stores');
+        if (res.ok) {
+          const data = await res.json();
+          setStores(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error('Failed to load stores');
+      }
+    };
+    fetchStores();
+    const iv = setInterval(fetchStores, 10000);
+    return () => clearInterval(iv);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -193,6 +213,22 @@ export default function AuthPage() {
                   value={formData.referralCode}
                   onChange={(e) => setFormData({...formData, referralCode: e.target.value})}
                 />
+              </div>
+            )}
+
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label>Select Store (Optional)</Label>
+                <select
+                  value={formData.store}
+                  onChange={(e) => setFormData({ ...formData, store: e.target.value })}
+                  className="w-full p-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="none">None</option>
+                  {stores.map((s: any) => (
+                    <option key={s._id} value={s._id}>{s.name}</option>
+                  ))}
+                </select>
               </div>
             )}
 

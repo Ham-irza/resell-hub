@@ -6,6 +6,9 @@ const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const Order = require('../models/Order');
 const { sendWithdrawalApprovedEmail } = require('../utils/emailService'); // <--- ADDED IMPORT
+const UserModel = require('../models/User');
+const Store = require('../models/Store');
+const ProductModel = require('../models/Product');
 
 // @route   GET api/admin/stats
 // @desc    Get Global Dashboard Stats + ALL Activity
@@ -139,7 +142,7 @@ router.get('/orders', [auth, admin], async (req, res) => {
 });
 
 // @route   PUT api/admin/orders/:id
-// @desc    Update order status (e.g. Processing -> Delivered)
+// @desc    Update order status (e.g. Processing -> Approved)
 // @access  Private (Admin only)
 router.put('/orders/:id', [auth, admin], async (req, res) => {
     const { status } = req.body;
@@ -165,5 +168,90 @@ router.put('/orders/:id', [auth, admin], async (req, res) => {
         res.status(500).send('Server Error');
     }
 });
+
+  // @route   PUT api/admin/users/:id/subscription
+  // @desc    Update a user's subscription tier (1,2,3)
+  // @access  Private (Admin only)
+  router.put('/users/:id/subscription', [auth, admin], async (req, res) => {
+    const { subscriptionTier } = req.body;
+
+    try {
+      if (![1,2,3].includes(Number(subscriptionTier))) {
+        return res.status(400).json({ msg: 'subscriptionTier must be 1, 2 or 3' });
+      }
+
+      const user = await User.findById(req.params.id);
+      if (!user) return res.status(404).json({ msg: 'User not found' });
+
+      user.subscriptionTier = Number(subscriptionTier);
+      await user.save();
+
+      res.json({ msg: 'Subscription tier updated', user });
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server Error');
+    }
+  });
+
+  // ------------------ Stores management ------------------
+  // @route   POST api/admin/stores
+  // @desc    Create a store (Admin only)
+  router.post('/stores', [auth, admin], async (req, res) => {
+    const { name, description } = req.body;
+    try {
+      if (!name) return res.status(400).json({ msg: 'Store name is required' });
+      const exists = await Store.findOne({ name });
+      if (exists) return res.status(400).json({ msg: 'Store already exists' });
+      const store = new Store({ name, description });
+      await store.save();
+      res.json(store);
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server Error');
+    }
+  });
+
+  // @route   GET api/admin/stores
+  // @desc    List all stores
+  router.get('/stores', [auth, admin], async (req, res) => {
+    try {
+      const stores = await Store.find().sort({ name: 1 });
+      res.json(stores);
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server Error');
+    }
+  });
+
+  // @route   DELETE api/admin/stores/:id
+  // @desc    Delete a store
+  router.delete('/stores/:id', [auth, admin], async (req, res) => {
+    try {
+      const store = await Store.findById(req.params.id);
+      if (!store) return res.status(404).json({ msg: 'Store not found' });
+      await store.deleteOne();
+      res.json({ msg: 'Store removed' });
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server Error');
+    }
+  });
+
+  // ------------------ Product trending toggle ------------------
+  // @route   PUT api/admin/products/:id/trendy
+  // @desc    Mark/unmark product as trendy
+  router.put('/products/:id/trendy', [auth, admin], async (req, res) => {
+    const { trendy } = req.body; // boolean
+    try {
+      const product = await ProductModel.findById(req.params.id);
+      if (!product) return res.status(404).json({ msg: 'Product not found' });
+      product.trendy = !!trendy;
+      await product.save();
+      res.json(product);
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server Error');
+    }
+  });
 
 module.exports = router;

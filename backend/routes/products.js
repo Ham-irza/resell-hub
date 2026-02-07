@@ -3,13 +3,29 @@ const router = express.Router();
 const auth = require('../middleware/authMiddleware');
 const admin = require('../middleware/adminMiddleware'); // Ensure you have this middleware
 const Product = require('../models/Product');
+const User = require('../models/User');
 
 // @route   GET api/products
 // @desc    Get all products (Visible to all logged in users)
 // @access  Private
 router.get('/', auth, async (req, res) => {
   try {
-    const products = await Product.find().sort({ createdAt: -1 });
+    // Get the logged in user's subscription tier
+    const user = await User.findById(req.user.id).select('subscriptionTier store');
+    const subscriptionTier = user ? user.subscriptionTier || 1 : 1;
+
+    // Build base filter: products available to user's subscription tier
+    const baseFilter = { tier: { $lte: subscriptionTier } };
+
+    // If user selected a store, only include products that are either global (no stores) or include that store
+    if (user && user.store) {
+      baseFilter.$or = [
+        { stores: { $exists: true, $size: 0 } },
+        { stores: { $exists: true, $in: [user.store] } }
+      ];
+    }
+
+    const products = await Product.find(baseFilter).sort({ createdAt: -1 });
     res.json(products);
   } catch (err) {
     console.error(err.message);
@@ -21,15 +37,19 @@ router.get('/', auth, async (req, res) => {
 // @desc    Create a product (Admin Only)
 // @access  Private (Admin)
 router.post('/', [auth, admin], async (req, res) => {
-  // Destructure image from body
-  const { name, price, quantity, description, image } = req.body; 
+  // Destructure image, tier, roi, trendy and stores from body
+  const { name, price, quantity, description, image, tier, roi, trendy, stores } = req.body; 
   try {
     const newProduct = new Product({
       name,
       price,
       quantity,
       description,
-      image // Save it
+      image, // Save it
+      tier: tier && [1,2,3].includes(Number(tier)) ? Number(tier) : 1,
+      roi: roi ? Number(roi) : 0,
+      trendy: !!trendy,
+      stores: Array.isArray(stores) ? stores : []
     });
     const product = await newProduct.save();
     res.json(product);

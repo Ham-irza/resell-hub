@@ -539,20 +539,28 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
                                 </div>
                                 <div className="p-5 flex-1 flex flex-col">
                                     <div className="flex justify-between items-start mb-2">
-                                        <h3 className="font-bold text-slate-800 line-clamp-1" title={prod.name}>{prod.name}</h3>
-                                        <span className="font-bold text-emerald-600 text-sm whitespace-nowrap">PKR {prod.price.toLocaleString()}</span>
+                                        <div className="flex items-center gap-3">
+                                          <h3 className="font-bold text-slate-800 line-clamp-1" title={prod.name}>{prod.name}</h3>
+                                          {prod.trendy && (
+                                            <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">Trendy</span>
+                                          )}
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                          <span className="font-bold text-emerald-600 text-sm whitespace-nowrap">PKR {prod.price.toLocaleString()}</span>
+                                          <span className="text-xs text-slate-400">ROI: {prod.roi ?? 0}%</span>
+                                        </div>
                                     </div>
                                     <p className="text-sm text-slate-500 mb-4 line-clamp-2 h-10">{prod.description || "No description available."}</p>
                                     
                                     <div className="mt-auto pt-4 border-t border-slate-50 flex justify-between items-center text-xs text-slate-400">
                                         <span>Inventory: {prod.quantity}</span>
                                         <Button 
-                                            size="sm" 
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs gap-2"
-                                            onClick={() => setSelectedProduct(prod)}
-                                            disabled={prod.quantity <= 0}
+                                          size="sm" 
+                                          className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs gap-2"
+                                          onClick={() => setSelectedProduct(prod)}
+                                          disabled={prod.quantity <= 0}
                                         >
-                                            <ShoppingCart className="w-3 h-3" /> Buy Now
+                                          <ShoppingCart className="w-3 h-3" /> Resell Now
                                         </Button>
                                     </div>
                                 </div>
@@ -603,7 +611,7 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
                                                 <td className="px-6 py-4 font-bold text-emerald-700">PKR {order.totalAmount.toLocaleString()}</td>
                                                 <td className="px-6 py-4">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
-                                                        order.status === 'delivered' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                        order.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                                         order.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                                         'bg-slate-100 text-slate-700 border-slate-200'
                                                     }`}>

@@ -3,13 +3,14 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Store = require('../models/Store');
 const auth = require('../middleware/authMiddleware');
 
 // @route   POST api/auth/register
 // @desc    Register user & Handle Referral
 // @access  Public
 router.post('/register', async (req, res) => {
-  const { name, email, password, phone, referralCode } = req.body;
+  const { name, email, password, phone, referralCode, store } = req.body;
 
   try {
     // 1. Check if user exists
@@ -24,6 +25,8 @@ router.post('/register', async (req, res) => {
       email,
       password,
       phone,
+      // Selected store (will be validated below)
+      store: null,
       // Generate unique referral code (e.g., name-1234)
       referralCode: `${name.replace(/\s/g, '').toLowerCase()}-${Math.floor(1000 + Math.random() * 9000)}`
     });
@@ -36,14 +39,28 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    // 4. Encrypt Password
+    // 4. Handle store selection if provided (validate against Store collection)
+    if (store) {
+      // allow special value 'none' or validate ObjectId
+      if (store === 'none') {
+        user.store = null;
+      } else {
+        const s = await Store.findById(store);
+        if (!s) {
+          return res.status(400).json({ msg: 'Selected store is invalid' });
+        }
+        user.store = s._id;
+      }
+    }
+
+    // 5. Encrypt Password
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);
 
-    // 5. Save to DB
+    // 6. Save to DB
     await user.save();
 
-    // 6. Return JWT Token
+    // 7. Return JWT Token
     const payload = { user: { id: user.id } };
     jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: 360000 }, (err, token) => {
       if (err) throw err;

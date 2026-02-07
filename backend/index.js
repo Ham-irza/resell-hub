@@ -43,6 +43,8 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/store', require('./routes/store'));
+app.use('/api/stores', require('./routes/stores'));
+app.use('/api/payment', require('./routes/payment')); // Alfa Payment Gateway
 
 // --- EXPORT FOR VERCEL ---
 if (process.env.NODE_ENV !== 'production') {
