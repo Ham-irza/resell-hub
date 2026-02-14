@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import logo from "../assets/egrocifylogo.png";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -59,7 +60,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       >
         <div className="p-6">
           <Link to="/" className="flex items-center gap-2">
-            <img src="/src/assets/egrocifylogo.png" alt="eGrocify" className="h-8 w-auto" />
+            <img src={logo} alt="eGrocify" className="h-8 w-auto" />
           </Link>
         </div>
 
@@ -98,7 +99,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <div className="flex-1 overflow-auto flex flex-col">
         {/* Mobile Header */}
         <div className="md:hidden bg-white border-b border-border p-4 flex items-center justify-between">
-          <img src="/src/assets/egrocifylogo.png" alt="eGrocify" className="h-8 w-auto" />
+          <img src={logo} alt="eGrocify" className="h-8 w-auto" />
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 hover:bg-muted rounded-lg"

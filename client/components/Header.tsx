@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import logo from "../src/assets/egrocifylogo.png";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -14,7 +15,7 @@ export function Header() {
         {/* LOGO SECTION */}
         <Link href="/" className="flex items-center gap-2 cursor-pointer">
           <img 
-            src="src/assets/egrocifylogo.png"
+            src={logo}
             alt="eGrocify" 
             className="h-10 w-auto object-contain" 
           />

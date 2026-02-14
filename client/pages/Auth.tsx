@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TrendingUp, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import logo from "../src/assets/egrocifylogo.png";
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -107,7 +108,7 @@ export default function AuthPage() {
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
         <div className="z-10">
           <div className="flex items-center gap-2 text-2xl font-bold mb-8">
-            <img src="/src/assets/egrocifylogo.png" alt="eGrocify" className="h-10 w-auto" />
+            <img src={logo} alt="eGrocify" className="h-10 w-auto" />
           </div>
           <h1 className="text-4xl font-bold leading-tight mb-4">
             Start your journey to <br/> financial freedom today.

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from 'wouter'; 
+import logo from "../src/assets/egrocifylogo.png";
 
 // --- CONFIGURATION ---
 const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
@@ -395,7 +396,7 @@ const UserDashboardContent = ({ user, onLogout }: any) => {
       <aside className="w-64 bg-white border-r border-emerald-100 hidden md:flex flex-col z-20">
         <div className="p-6 border-b border-emerald-100">
            <div className="text-xl font-bold text-emerald-800 flex items-center gap-2">
-             <img src="/src/assets/egrocifylogo.png" alt="eGrocify" className="h-8 w-auto" />
+             <img src={logo} alt="eGrocify" className="h-8 w-auto" />
            </div>
         </div>
         
