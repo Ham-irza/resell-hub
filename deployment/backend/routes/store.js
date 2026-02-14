@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/authMiddleware');
 const Order = require('../models/Order');
-const Product = require('../models/Product');
+const Product = require('../models/Product'); // Assuming you have this from previous steps
 
 // @route   POST api/store/buy
-// @desc    Buy a product (Deduct stock, create order, start auto-sell)
+// @desc    Buy a product (Deduct stock, create order)
 // @access  Private
 router.post('/buy', auth, async (req, res) => {
     const { productId, quantity } = req.body;
@@ -23,14 +23,10 @@ router.post('/buy', auth, async (req, res) => {
             return res.status(400).json({ msg: "Not enough stock available" });
         }
 
-        // 3. Calculate Total and Expected Profit
+        // 3. Calculate Total
         const totalAmount = product.price * quantity;
-        
-        // Calculate expected profit based on ROI
-        const roi = product.roi || 0;
-        const expectedProfit = (totalAmount * roi) / 100;
 
-        // 4. Create Order Record with Auto-Sell fields
+        // 4. Create Order Record
         const newOrder = new Order({
             user: req.user.id,
             product: product._id,
@@ -38,14 +34,7 @@ router.post('/buy', auth, async (req, res) => {
             productImage: product.image,
             quantity: Number(quantity),
             totalAmount: totalAmount,
-            status: 'auto-selling', // Start auto-sell immediately
-            // Auto-sell tracking fields
-            itemsSold: 0,
-            totalQuantity: Number(quantity),
-            expectedProfit: expectedProfit,
-            pricePerItem: product.price,
-            roi: roi,
-            lastProcessedDate: new Date()
+            status: 'processing'
         });
 
         await newOrder.save();
@@ -54,10 +43,7 @@ router.post('/buy', auth, async (req, res) => {
         product.quantity = product.quantity - quantity;
         await product.save();
 
-        res.json({ 
-            msg: "Order placed successfully! Auto-sell has started.", 
-            order: newOrder 
-        });
+        res.json({ msg: "Order placed successfully", order: newOrder });
 
     } catch (err) {
         console.error(err.message);
@@ -73,22 +59,6 @@ router.get('/orders', auth, async (req, res) => {
         // Fetch orders for this user, newest first
         const orders = await Order.find({ user: req.user.id }).sort({ createdAt: -1 });
         res.json(orders);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
-    }
-});
-
-// @route   GET api/store/active-orders
-// @desc    Get user's active auto-selling orders
-// @access  Private
-router.get('/active-orders', auth, async (req, res) => {
-    try {
-        const activeOrders = await Order.find({ 
-            user: req.user.id, 
-            status: 'auto-selling' 
-        }).sort({ createdAt: -1 });
-        res.json(activeOrders);
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server Error');

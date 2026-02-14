@@ -59,10 +59,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       >
         <div className="p-6">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">R</span>
-            </div>
-            <span className="font-bold text-lg text-foreground">ResellHub</span>
+            <img src="/src/assets/egrocifylogo.png" alt="eGrocify" className="h-8 w-auto" />
           </Link>
         </div>
 
@@ -101,7 +98,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <div className="flex-1 overflow-auto flex flex-col">
         {/* Mobile Header */}
         <div className="md:hidden bg-white border-b border-border p-4 flex items-center justify-between">
-          <div className="font-bold">ResellHub</div>
+          <img src="/src/assets/egrocifylogo.png" alt="eGrocify" className="h-8 w-auto" />
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 hover:bg-muted rounded-lg"

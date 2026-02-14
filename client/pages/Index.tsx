@@ -1,6 +1,6 @@
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
-import { Check, Zap, TrendingUp, Wallet, Users, Shield } from "lucide-react";
+import { Check, Zap, TrendingUp, Wallet, Users, Shield, ShoppingCart, Clock, ArrowRight } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function Index() {
@@ -10,93 +10,59 @@ export default function Index() {
     setLocation("/auth");
   };
 
-  const pricingPlans = [
+  const steps = [
     {
-      name: "Starter",
-      monthlyReturn: "4%",
-      price: "PKR 50,000",
-      description: "Perfect for beginners",
-      features: [
-        "Basic product portfolio",
-        "Daily sales simulation (1 item/day)",
-        "Basic wallet system",
-        "Email notifications",
-        "5% referral commission",
-      ],
-      cta: "Get Started",
-      highlighted: false,
+      step: "1",
+      title: "Browse Products",
+      description: "Choose from a variety of products available in our marketplace."
     },
     {
-      name: "Growth",
-      monthlyReturn: "4.5%",
-      price: "PKR 100,000",
-      description: "Best for active resellers",
-      features: [
-        "Extended product portfolio",
-        "Daily sales simulation (1-2 items/day)",
-        "Advanced wallet analytics",
-        "SMS & email notifications",
-        "7% referral commission",
-        "Priority support",
-      ],
-      cta: "Get Started",
-      highlighted: true,
+      step: "2",
+      title: "Purchase & Pay",
+      description: "Buy products using our secure Bank Alfalah payment gateway."
     },
     {
-      name: "Premium",
-      monthlyReturn: "5%",
-      price: "PKR 200,000",
-      description: "Maximum returns",
-      features: [
-        "Full product portfolio",
-        "Optimized sales simulation (1-2 items/day)",
-        "Advanced analytics & reports",
-        "Multi-channel notifications",
-        "10% referral commission",
-        "24/7 priority support",
-        "Withdrawal priority processing",
-      ],
-      cta: "Get Started",
-      highlighted: false,
+      step: "3",
+      title: "Auto-Sell (30 Days)",
+      description: "Your products are automatically sold within 30 days. Track progress in real-time."
     },
+    {
+      step: "4",
+      title: "Get Paid",
+      description: "Receive your capital + profit directly in your wallet. Withdraw anytime!"
+    }
   ];
 
   const features = [
     {
-      icon: Wallet,
-      title: "Smart Wallet System",
-      description:
-        "Track your earnings in real-time as products sell daily. See your profits grow with automated updates.",
+      icon: Zap,
+      title: "30-Day Auto-Sell",
+      description: "Products sell automatically within 30 days. No waiting, no hassle - just pure profits.",
     },
     {
       icon: TrendingUp,
-      title: "Sales Simulation",
-      description:
-        "Products sell automatically 1-2 items per day throughout the month. Full transparency on sales progress.",
+      title: "Real-Time Tracking",
+      description: "Watch your items sell in real-time with live progress updates and notifications.",
+    },
+    {
+      icon: Wallet,
+      title: "Instant Wallet",
+      description: "Get paid immediately after sales complete. Withdraw to your bank account anytime.",
     },
     {
       icon: Users,
       title: "Referral Program",
-      description:
-        "Share your unique referral link and earn commissions from every purchase. Unlimited earning potential.",
+      description: "Share your unique link and earn commissions from every new reseller who joins.",
     },
     {
       icon: Shield,
       title: "Secure Payments",
-      description:
-        "Bank Alfalah integration ensures secure, reliable payment processing. Your money is always protected.",
+      description: "Bank Alfalah integration ensures secure, reliable payment processing every time.",
     },
     {
-      icon: Zap,
-      title: "Instant Notifications",
-      description:
-        "Get real-time updates on sales, earnings, and referrals. Stay connected to your business.",
-    },
-    {
-      icon: TrendingUp,
-      title: "Easy Withdrawals",
-      description:
-        "Simple withdrawal process with transparent status tracking. Get your earnings when you want.",
+      icon: ShoppingCart,
+      title: "Wide Product Range",
+      description: "Choose from hundreds of products across different categories and price points.",
     },
   ];
 
@@ -107,13 +73,18 @@ export default function Index() {
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-16 md:py-24">
         <div className="max-w-4xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
+            <Zap className="w-4 h-4" />
+            Auto-Sell in Just 30 Days!
+          </div>
+          
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6">
-            Grow Your Income with{" "}
-            <span className="text-primary">Smart Reselling</span>
+            Turn Products Into{" "}
+            <span className="text-primary">Profits</span> Automatically
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Join thousands of resellers earning daily returns. Minimal effort,
-            maximum profit. Let your products sell themselves.
+            Buy products, we auto-sell them in 30 days. Track progress in real-time. 
+            Get paid to your wallet instantly. It's that simple!
           </p>
           
           {/* Main CTA Button */}
@@ -122,7 +93,8 @@ export default function Index() {
             onClick={handleSignUp}
             className="text-lg px-8 py-6 bg-primary hover:bg-primary/90 text-white"
           >
-            Start Earning Now
+            Start Selling Now
+            <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
         </div>
 
@@ -130,9 +102,9 @@ export default function Index() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-16 md:mt-24">
           {[
             { label: "Active Resellers", value: "5,000+" },
-            { label: "Total Earnings", value: "PKR 50M+" },
-            { label: "Avg. Return", value: "4.5%" },
-            { label: "Uptime", value: "99.9%" },
+            { label: "Products Sold", value: "50,000+" },
+            { label: "Avg. Profit", value: "15%" },
+            { label: "Fast Payouts", value: "24/7" },
           ].map((stat, i) => (
             <div key={i} className="text-center">
               <div className="text-2xl md:text-3xl font-bold text-primary mb-2">
@@ -146,71 +118,37 @@ export default function Index() {
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="py-16 md:py-24 bg-muted/30">
+      {/* How It Works Section */}
+      <section id="how-it-works" className="py-16 md:py-24 bg-muted/30">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              Simple, Transparent Pricing
+              How It Works
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Choose the plan that fits your goals. All plans include daily
-              sales simulation and automated earnings.
+              Four simple steps to start earning. No experience needed!
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {pricingPlans.map((plan, index) => (
-              <div
-                key={index}
-                className={`rounded-lg border transition-all ${
-                  plan.highlighted
-                    ? "border-primary bg-white shadow-lg md:scale-105"
-                    : "border-border bg-white hover:shadow-md"
-                }`}
-              >
-                <div className="p-8">
-                  {plan.highlighted && (
-                    <div className="bg-accent text-accent-foreground text-xs font-bold px-3 py-1 rounded-full inline-block mb-4">
-                      MOST POPULAR
-                    </div>
-                  )}
-                  <h3 className="text-2xl font-bold text-foreground mb-2">
-                    {plan.name}
+          <div className="grid md:grid-cols-4 gap-8 max-w-6xl mx-auto">
+            {steps.map((step, index) => (
+              <div key={index} className="relative">
+                <div className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm text-center h-full">
+                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-xl font-bold text-emerald-700">{step.step}</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-foreground mb-2">
+                    {step.title}
                   </h3>
-                  <p className="text-muted-foreground mb-4">
-                    {plan.description}
+                  <p className="text-muted-foreground text-sm">
+                    {step.description}
                   </p>
-
-                  <div className="mb-6">
-                    <div className="text-4xl font-bold text-foreground mb-2">
-                      {plan.price}
-                    </div>
-                    <div className="text-accent font-semibold">
-                      {plan.monthlyReturn} Monthly Return
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={handleSignUp}
-                    className={`w-full mb-8 ${
-                      plan.highlighted
-                        ? "bg-primary hover:bg-primary/90"
-                        : "bg-secondary hover:bg-secondary/90"
-                    }`}
-                  >
-                    {plan.cta}
-                  </Button>
-
-                  <div className="space-y-4">
-                    {plan.features.map((feature, i) => (
-                      <div key={i} className="flex items-start gap-3">
-                        <Check className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
-                        <span className="text-foreground">{feature}</span>
-                      </div>
-                    ))}
-                  </div>
                 </div>
+                {index < steps.length - 1 && (
+                  <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2 text-emerald-300">
+                    <ArrowRight className="w-8 h-8" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -222,7 +160,7 @@ export default function Index() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              Powerful Features
+              Why Choose Us
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Everything you need to succeed as a reseller
@@ -268,7 +206,7 @@ export default function Index() {
       {/* Footer */}
       <footer className="bg-muted/50 border-t border-border py-8">
         <div className="container mx-auto px-4 text-center text-muted-foreground">
-          <p>&copy; 2024 ResellHub. All rights reserved.</p>
+          <p>&copy; 2024 eGrocify. All rights reserved.</p>
         </div>
       </footer>
     </div>

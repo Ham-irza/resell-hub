@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
 const sendEmail = async (to, subject, htmlContent) => {
   try {
     const mailOptions = {
-      from: `"eGrocify Alerts" <${process.env.EMAIL_USER}>`,
+      from: `"ResellHub Alerts" <${process.env.EMAIL_USER}>`,
       to: to,
       subject: subject,
       html: htmlContent
@@ -35,7 +35,7 @@ const sendPurchaseEmail = async (userEmail, userName, planName, amount) => {
     <p>Your purchase of the <strong>${planName}</strong> plan for <strong>PKR ${amount.toLocaleString()}</strong> was successful.</p>
     <p>Your automated sales simulation has started. Check your dashboard for daily updates.</p>
     <br>
-    <p>Regards,<br>eGrocify Team</p>
+    <p>Regards,<br>ResellHub Team</p>
   `;
   await sendEmail(userEmail, subject, html);
   

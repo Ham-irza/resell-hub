@@ -5,16 +5,35 @@ const Investment = require('../models/Investment');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 
-// --- CONFIGURATION ---
-const PLAN_RATES = {
-  "Starter": { dailyItems: 1, profitPerItem: 67 }, // ~2000/month
-  "Growth": { dailyItems: 1.5, profitPerItem: 111 }, // ~5000/month (Average 1.5 items)
-  "Premium": { dailyItems: 2, profitPerItem: 167 } // ~10000/month
+// --- 1. PLANS CONFIGURATION (Matches your Plan Model) ---
+const PLANS = {
+    "Starter": { 
+        name: "Starter", 
+        price: 50000, 
+        returnPercentage: 4.0, 
+        totalItems: 100,       
+        dailyMinSales: 2,      
+        dailyMaxSales: 5       
+    },
+    "Growth": { 
+        name: "Growth", 
+        price: 100000, 
+        returnPercentage: 4.5, 
+        totalItems: 250,       
+        dailyMinSales: 5,
+        dailyMaxSales: 10
+    },
+    "Premium": { 
+        name: "Premium", 
+        price: 200000, 
+        returnPercentage: 5.0, 
+        totalItems: 600,       
+        dailyMinSales: 15,
+        dailyMaxSales: 30
+    }
 };
 
 // @route   GET api/investments/active
-// @desc    Get the current active investment (and simulate sales if a day has passed)
-// @access  Private
 router.get('/active', auth, async (req, res) => {
     try {
         let investment = await Investment.findOne({ 
@@ -26,65 +45,48 @@ router.get('/active', auth, async (req, res) => {
             return res.json(null);
         }
 
-        // --- SIMULATION LOGIC: "Catch Up" Mechanism ---
+        // --- SIMULATION LOGIC ---
         const now = new Date();
-        const lastUpdate = new Date(investment.lastProcessedDate);
-
-        // Reset times to Midnight (00:00:00) to compare calendar days only
+        const lastUpdate = new Date(investment.lastProcessedDate || investment.startDate);
         const todayMidnight = new Date(now.setHours(0,0,0,0));
         const lastMidnight = new Date(lastUpdate.setHours(0,0,0,0));
-
-        // Calculate difference in days (milliseconds -> days)
         const diffTime = Math.abs(todayMidnight - lastMidnight);
         const daysPassed = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
 
-        // If at least 1 day has passed, simulate sales for those days
-        if (daysPassed > 0 && investment.itemsSold < investment.totalStock) {
+        // Get limits (Handle both naming conventions for safety)
+        const stockLimit = investment.totalStock || investment.plan.totalItems || 100;
+
+        if (daysPassed > 0 && investment.itemsSold < stockLimit) {
             
-            // 1. Determine Sales Range based on Plan
-            let minSales = 1;
-            let maxSales = 1;
+            // Handle naming mismatch for simulation
+            const min = investment.plan.dailyMinSales || 1;
+            // If strictly "dailySales" exists, use it as max, otherwise use dailyMaxSales
+            const max = investment.plan.dailyMaxSales || investment.plan.dailySales || 2;
+            const profitRate = investment.plan.returnPercentage || investment.plan.returnRate || 4.0;
 
-            if (investment.plan.name === 'Growth') { maxSales = 2; }
-            if (investment.plan.name === 'Premium') { minSales = 2; maxSales = 3; }
+            let newSales = 0;
+            let newProfit = 0;
 
-            // 2. Calculate Profit Per Item
-            // Logic: Total Profit = Price * (ReturnRate / 100). 
-            // Profit Per Item = Total Profit / Total Stock
-            const rate = parseFloat(investment.plan.returnRate); // Extract "4" from "4%"
-            const totalExpectedProfit = investment.plan.price * (rate / 100);
-            const profitPerItem = totalExpectedProfit / investment.totalStock;
-
-            // 3. Loop through missed days
             for (let i = 0; i < daysPassed; i++) {
-                // Stop if stock is empty
-                if (investment.itemsSold >= investment.totalStock) break;
+                if (investment.itemsSold + newSales >= stockLimit) break;
 
-                // Randomize sales for this day
-                const dailyCount = Math.floor(Math.random() * (maxSales - minSales + 1)) + minSales;
-                
-                // Add to total (ensure we don't oversell)
-                const remainingStock = investment.totalStock - investment.itemsSold;
-                const actualSales = Math.min(dailyCount, remainingStock);
+                const actualSales = Math.floor(Math.random() * (max - min + 1)) + min;
+                const dailyProfit = (investment.plan.price * (profitRate / 100)) / 30;
 
-                investment.itemsSold += actualSales;
-                investment.accumulatedReturn += (actualSales * profitPerItem);
+                newSales += actualSales;
+                newProfit += dailyProfit;
             }
 
-            // 4. Check if Plan is Completed
-            if (investment.itemsSold >= investment.totalStock) {
+            investment.itemsSold += newSales;
+            investment.accumulatedReturn += newProfit;
+            investment.lastProcessedDate = new Date();
+
+            if (investment.itemsSold >= stockLimit) {
                 investment.status = 'completed';
-                // OPTIONAL: Auto-credit wallet when completed?
-                // const user = await User.findById(req.user.id);
-                // user.walletBalance += (investment.plan.price + investment.accumulatedReturn);
-                // await user.save();
             }
 
-            // 5. Save the Update
-            investment.lastProcessedDate = new Date(); // Set to Now
             await investment.save();
         }
-        // ---------------------------------------------------------
 
         res.json(investment);
 
@@ -95,48 +97,56 @@ router.get('/active', auth, async (req, res) => {
 });
 
 // @route   POST api/investments/buy
-// @desc    Purchase a new plan
-// @access  Private
 router.post('/buy', auth, async (req, res) => {
-    const { planName } = req.body;
-  
-    // Map plan names to Prices and Stock
-    const PLAN_DETAILS = {
-        "Starter": { price: 50000, stock: 30 },
-        "Growth": { price: 100000, stock: 45 },
-        "Premium": { price: 200000, stock: 60 }
-    };
-
-    const selectedPlan = PLAN_DETAILS[planName];
-
-    if (!selectedPlan) {
-        return res.status(400).json({ msg: "Invalid plan selected" });
-    }
-
     try {
-        const user = await User.findById(req.user.id);
+        const { planName } = req.body; 
 
-        // Check if user already has an active plan
+        // 1. Validate the Plan Name
+        const selectedPlan = PLANS[planName];
+        if (!selectedPlan) {
+            return res.status(400).json({ msg: "Invalid Plan Selected" });
+        }
+
+        // 2. Check if user already has an active plan
         const existing = await Investment.findOne({ user: req.user.id, status: 'active' });
         if (existing) {
             return res.status(400).json({ msg: "You already have an active plan" });
         }
 
-        // Create Investment
+        // 3. Create the Investment (CRITICAL MAPPING FIX)
         const newInvestment = new Investment({
             user: req.user.id,
-            plan: planName,
-            amountInvested: selectedPlan.price,
-            totalStock: selectedPlan.stock,
+            status: 'active',
+            
+            // MAP DATA: Translate "Plan Model" names to "Investment Schema" names
+            plan: {
+                name: selectedPlan.name,
+                price: selectedPlan.price,
+                
+                // MAPPING 1: Schema wants 'dailySales', we give it the average or max
+                dailySales: selectedPlan.dailyMaxSales, 
+                
+                // MAPPING 2: Schema wants 'returnRate', we give it 'returnPercentage'
+                returnRate: selectedPlan.returnPercentage,
+                
+                // Keep these for future reference if schema allows
+                dailyMinSales: selectedPlan.dailyMinSales,
+                dailyMaxSales: selectedPlan.dailyMaxSales,
+                totalItems: selectedPlan.totalItems
+            },
+            
+            // Map totalItems to totalStock
+            totalStock: selectedPlan.totalItems,
+            
+            startDate: new Date(),
+            lastProcessedDate: new Date(),
             itemsSold: 0,
-            accumulatedReturn: 0,
-            startDate: new Date(), // Important for the math later
-            status: 'active'
+            accumulatedReturn: 0
         });
 
         await newInvestment.save();
 
-        // Create Transaction Record
+        // 4. Record the Transaction
         const newTx = new Transaction({
             user: req.user.id,
             type: 'deposit',
@@ -149,8 +159,9 @@ router.post('/buy', auth, async (req, res) => {
         res.json(newInvestment);
 
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
+        console.error("Investment Error:", err.message);
+        // Send the specific error message to the frontend/logs
+        res.status(500).send('Investment Failed: ' + err.message);
     }
 });
 

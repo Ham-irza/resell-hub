@@ -10,12 +10,14 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-border shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        {/* Logo */}
+        
+        {/* LOGO SECTION */}
         <Link href="/" className="flex items-center gap-2 cursor-pointer">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-lg">R</span>
-          </div>
-          <span className="hidden sm:inline font-bold text-lg text-foreground">ResellHub</span>
+          <img 
+            src="src/assets/egrocifylogo.png"
+            alt="eGrocify" 
+            className="h-10 w-auto object-contain" 
+          />
         </Link>
 
         {/* Desktop Navigation */}
@@ -23,8 +25,8 @@ export function Header() {
           <Link href="/" className="text-foreground hover:text-primary transition-colors cursor-pointer">
             Home
           </Link>
-          <a href="#pricing" className="text-foreground hover:text-primary transition-colors cursor-pointer">
-            Pricing
+          <a href="#how-it-works" className="text-foreground hover:text-primary transition-colors cursor-pointer">
+            How It Works
           </a>
           <a href="#features" className="text-foreground hover:text-primary transition-colors cursor-pointer">
             Features
@@ -39,7 +41,6 @@ export function Header() {
           >
             Sign In
           </Button>
-          {/* Get Started Button Removed */}
         </div>
 
         {/* Mobile Menu Toggle */}
@@ -67,11 +68,11 @@ export function Header() {
               Home
             </Link>
             <a
-              href="#pricing"
+              href="#how-it-works"
               className="text-foreground hover:text-primary transition-colors"
               onClick={() => setMobileMenuOpen(false)}
             >
-              Pricing
+              How It Works
             </a>
             <a
               href="#features"
@@ -91,7 +92,6 @@ export function Header() {
               >
                 Sign In
               </Button>
-              {/* Get Started Button Removed */}
             </div>
           </nav>
         </div>

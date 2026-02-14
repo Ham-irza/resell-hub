@@ -2,8 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const path = require('path'); 
-const startSimulation = require('./utils/simulationScheduler');
+
+// REMOVED: const startSimulation = require('./utils/simulationScheduler'); 
 
 const app = express();
 
@@ -34,35 +34,22 @@ app.use(async (req, res, next) => {
     next();
 });
 
-// --- API ROUTES ---
+// --- ROUTES ---
+app.get('/', (req, res) => res.send('ResellHub API Running')); 
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/investments', require('./routes/investments'));
+app.use('/api/investments', require('./routes/investments')); // The new logic is in here
 app.use('/api/wallet', require('./routes/wallet'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/store', require('./routes/store'));
 app.use('/api/stores', require('./routes/stores'));
-app.use('/api/payment', require('./routes/payment'));
+app.use('/api/payment', require('./routes/payment')); // Alfa Payment Gateway
 
-// --- SERVE FRONTEND (FIXED PATH & ROUTE) ---
-
-// 1. Serve static files from "dist/spa" (Where your files actually are)
-app.use(express.static(path.join(__dirname, '../dist/spa')));
-
-// 2. Handle React/Vue Routing (Using 'app.use' to prevent PathError crashes)
-// This catches any request that wasn't an API call or a static file.
-app.use((req, res) => {
-    res.sendFile(path.join(__dirname, '../dist/spa/index.html'));
-});
-
-// --- SERVER START ---
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    // Start the auto-sell simulation scheduler
-    startSimulation();
-    console.log('📦 Auto-sell scheduler started');
-});
+// --- EXPORT FOR VERCEL ---
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+}
 
 module.exports = app;

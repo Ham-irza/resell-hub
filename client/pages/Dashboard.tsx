@@ -1,22 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  LayoutDashboard, Wallet, TrendingUp, Users, Bell, 
+  Wallet, TrendingUp, Users, Bell, 
   Check, X, ShieldCheck, Loader2, Copy, LogOut, Clock,
-  Package, CreditCard, ShoppingBag, Minus, Plus, ShoppingCart,
-  ClipboardList, Search
+  Package, ShoppingBag, Minus, Plus, ShoppingCart,
+  ClipboardList, Search, Zap, ArrowRight, CreditCard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from 'wouter'; 
 
 // --- CONFIGURATION ---
 const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
-
-// --- CONSTANTS ---
-const PLANS = [
-  { name: "Starter", price: 50000, returnRate: "4%", dailySales: "1 item" },
-  { name: "Growth", price: 100000, returnRate: "4.5%", dailySales: "1-2 items" },
-  { name: "Premium", price: 200000, returnRate: "5%", dailySales: "2+ items" },
-];
 
 // --- COMPONENTS ---
 
@@ -119,95 +112,11 @@ const NotificationBell = () => {
   );
 };
 
-// 2. Plan Payment Modal (For buying Investment Plans)
-const PlanPaymentModal = ({ plan, isOpen, onClose, onSuccess }: any) => {
-  const [step, setStep] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-
-  if (!isOpen || !plan) return null;
-
-  const handlePayment = async () => {
-    setStep(2); 
-    setTimeout(async () => {
-      try {
-        setIsLoading(true);
-        const token = localStorage.getItem('token');
-        const res = await fetch('/api/investments/buy', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'x-auth-token': token || '' 
-          },
-          body: JSON.stringify({ planName: plan.name })
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.msg || "Purchase Failed");
-        
-        setStep(3); 
-        setTimeout(() => onSuccess(), 1500);
-
-      } catch (err: any) {
-        alert(err.message);
-        onClose();
-      } finally {
-        setIsLoading(false);
-      }
-    }, 2000); 
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-emerald-100">
-        <div className="bg-emerald-900 p-6 text-white flex justify-between items-start">
-          <div>
-            <h3 className="text-lg font-bold flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" /> Bank Alfalah Gateway
-            </h3>
-            <p className="text-emerald-200 text-sm mt-1">Secure Plan Purchase</p>
-          </div>
-          <button onClick={onClose} className="hover:text-emerald-300"><X className="w-5 h-5" /></button>
-        </div>
-
-        <div className="p-6">
-          {step === 1 && (
-            <div className="space-y-4">
-               <div className="bg-emerald-50 p-4 rounded-lg mb-4">
-                <p className="text-sm text-slate-500">Purchasing Package:</p>
-                <div className="flex justify-between items-end">
-                  <h4 className="font-bold text-lg text-emerald-900">{plan.name}</h4>
-                  <span className="font-bold text-emerald-600">PKR {plan.price.toLocaleString()}</span>
-                </div>
-              </div>
-              <Button onClick={handlePayment} className="w-full bg-red-600 hover:bg-red-700 text-white mt-4">
-                Pay with Bank Alfalah
-              </Button>
-            </div>
-          )}
-          {step === 2 && (
-            <div className="text-center py-8">
-               <Loader2 className="w-10 h-10 text-emerald-600 animate-spin mx-auto mb-4" />
-               <p className="text-slate-600">Processing Payment...</p>
-            </div>
-          )}
-          {step === 3 && (
-            <div className="text-center py-8">
-               <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Check className="w-8 h-8 text-emerald-600" />
-              </div>
-              <h3 className="text-xl font-bold text-emerald-800">Transaction Successful!</h3>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// 3. Product Purchase Modal (For buying individual items)
+// 2. Product Purchase Modal (For buying individual items)
 const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
     const [quantity, setQuantity] = useState(1);
     const [step, setStep] = useState(1); 
+    const [isRedirecting, setIsRedirecting] = useState(false);
     
     if (!isOpen || !product) return null;
 
@@ -215,41 +124,56 @@ const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
 
     const handlePurchase = async () => {
         setStep(2);
-        setTimeout(async () => {
-            try {
-                const token = localStorage.getItem('token');
+        try {
+            const token = localStorage.getItem('token');
+            
+            // First, initiate payment through the payment gateway
+            const paymentRes = await fetch('/api/payment/initiate', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token || '' 
+                },
+                body: JSON.stringify({ 
+                    productId: product._id, 
+                    quantity: quantity,
+                    amount: total,
+                    description: `Purchase: ${product.name} x${quantity}`
+                })
+            });
+
+            const paymentData = await paymentRes.json();
+
+            if(!paymentRes.ok) {
+                throw new Error(paymentData.msg || paymentData.error || "Payment initiation failed");
+            }
+
+            // If it's a hosted redirect (LIVE mode), redirect to payment page
+            if (paymentData.type === 'HOSTED_REDIRECT' && paymentData.formData) {
+                setIsRedirecting(true);
                 
-                // --- CALL REAL BACKEND ---
-                const res = await fetch('/api/store/buy', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'x-auth-token': token || '' 
-                    },
-                    body: JSON.stringify({ 
-                        productId: product._id, 
-                        quantity: quantity 
-                    })
-                });
+                // According to Alfa documentation, redirect with JSON data as query param
+                const redirectUrl = `${paymentData.formData.apiUrl}/Checkout?data=${encodeURIComponent(JSON.stringify(paymentData.formData))}`;
+                window.location.href = redirectUrl;
+                return;
+            }
 
-                const data = await res.json();
-
-                if(!res.ok) {
-                    throw new Error(data.msg || "Purchase failed");
-                }
-
+            // For TEST mode, just create the order directly
+            if (paymentData.success) {
+                // Order was already created in the backend
                 setStep(3);
                 setTimeout(() => {
-                    onSuccess(); // Updates UI
+                    onSuccess();
                     setStep(1);
                     setQuantity(1);
                 }, 2000);
-            } catch (err: any) {
-                alert(err.message || "Payment Failed");
-                onClose();
-                setStep(1);
             }
-        }, 2000);
+
+        } catch (err: any) {
+            alert(err.message || "Payment Failed");
+            onClose();
+            setStep(1);
+        }
     };
 
     return (
@@ -305,13 +229,19 @@ const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
                                     <span className="font-bold text-slate-700">Total Amount</span>
                                     <span className="font-bold text-xl text-emerald-700">PKR {total.toLocaleString()}</span>
                                 </div>
+                                <div className="mt-3 pt-3 border-t border-slate-200">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm text-slate-600">Expected Profit ({product.roi || 0}%)</span>
+                                        <span className="font-bold text-emerald-600">PKR {Math.round(total * (product.roi || 0) / 100).toLocaleString()}</span>
+                                    </div>
+                                </div>
                             </div>
 
                             <Button onClick={handlePurchase} className="w-full bg-red-600 hover:bg-red-700 text-white h-12 text-base shadow-md hover:shadow-lg transition-all">
                                 Pay PKR {total.toLocaleString()}
                             </Button>
                             <p className="text-xs text-center text-slate-400 mt-3 flex items-center justify-center gap-1">
-                                <ShieldCheck className="w-3 h-3" /> Secure Payment via Bank Alfalah
+                                <Zap className="w-3 h-3" /> Auto-sells in 30 days!
                             </p>
                         </>
                     )}
@@ -330,7 +260,7 @@ const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
                                 <Check className="w-8 h-8 text-emerald-600" />
                             </div>
                             <h3 className="text-xl font-bold text-emerald-800">Order Successful!</h3>
-                            <p className="text-slate-500 text-sm mt-2">You will receive a confirmation shortly.</p>
+                            <p className="text-slate-500 text-sm mt-2">Your items will auto-sell within 30 days.</p>
                         </div>
                     )}
                 </div>
@@ -339,44 +269,25 @@ const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
     );
 };
 
-// 4. Plan Selection View (For new users)
-const PlanSelectionView = ({ onSelectPlan }: any) => (
-  <div className="min-h-screen bg-slate-50 py-12 px-4">
-    <div className="max-w-5xl mx-auto">
-      <div className="text-center mb-12">
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Activate Your Account</h1>
-        <p className="text-slate-600">Select a package to start earning.</p>
-      </div>
-      <div className="grid md:grid-cols-3 gap-8">
-        {PLANS.map((plan, idx) => (
-          <div key={idx} className={`bg-white p-8 rounded-xl border border-slate-200 hover:border-emerald-500 transition-all shadow-sm hover:shadow-lg ${plan.name === 'Growth' ? 'border-emerald-500 ring-1 ring-emerald-500' : ''}`}>
-            <h3 className="text-2xl font-bold text-slate-900 mb-2">{plan.name}</h3>
-            <div className="mb-6">
-              <span className="text-4xl font-bold">PKR {plan.price.toLocaleString()}</span>
-              <p className="text-emerald-600 font-medium mt-1">{plan.returnRate} Return</p>
-            </div>
-            <Button onClick={() => onSelectPlan(plan)} className={`w-full ${plan.name === 'Growth' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-900 hover:bg-slate-800'}`}>
-              Select Plan
-            </Button>
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-);
-
-// 5. Active Dashboard View
-// IMPORTANT: This component does NOT handle Plan Payments. It only handles Product Purchases.
-const ActiveDashboard = ({ investment, user, onLogout }: any) => {
-  const [activeTab, setActiveTab] = useState("products");
+// 3. Main Dashboard Component
+const UserDashboardContent = ({ user, onLogout }: any) => {
+  const [activeTab, setActiveTab] = useState("home");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [msg, setMsg] = useState("");
   const [copied, setCopied] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]); 
+  const [activeOrders, setActiveOrders] = useState([]);
   
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  
+  // Close sidebar when changing tabs on mobile
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setSidebarOpen(false);
+  };
 
   // Fetch Products
   const fetchProducts = async () => {
@@ -394,7 +305,7 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
     }
   };
 
-  // Fetch Orders
+  // Fetch All Orders
   const fetchOrders = async () => {
     const token = localStorage.getItem('token');
     try {
@@ -410,9 +321,26 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
     }
   };
 
+  // Fetch Active Auto-Sell Orders
+  const fetchActiveOrders = async () => {
+    const token = localStorage.getItem('token');
+    try {
+        const res = await fetch('/api/store/active-orders', { 
+            headers: { 'x-auth-token': token || '' } 
+        });
+        if(res.ok) {
+            const data = await res.json();
+            setActiveOrders(data);
+        }
+    } catch(err) {
+        console.error("Failed to fetch active orders", err);
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
-    fetchOrders(); // Load orders on mount
+    fetchOrders();
+    fetchActiveOrders();
   }, []);
 
   const handleWithdraw = async () => {
@@ -445,16 +373,20 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // REFRESH DATA AFTER PURCHASE (Updates Stock & Order History)
   const refreshData = () => {
       setSelectedProduct(null); 
       fetchProducts(); 
       fetchOrders();
+      fetchActiveOrders();
   };
 
-  const progress = (investment.itemsSold / investment.totalStock) * 100;
   const currentBalance = user.walletBalance || 0; 
-  const plan = investment.plan || { name: 'Unknown', returnPercentage: 0 };
+
+  // Calculate stats for welcome dashboard
+  const completedOrders = orders.filter((o: any) => o.status === 'completed').length;
+  const totalEarnings = orders
+    .filter((o: any) => o.status === 'completed')
+    .reduce((sum: number, o: any) => sum + (o.expectedProfit || 0), 0);
 
   return (
     <div className="flex h-screen bg-emerald-50/30">
@@ -463,19 +395,22 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
       <aside className="w-64 bg-white border-r border-emerald-100 hidden md:flex flex-col z-20">
         <div className="p-6 border-b border-emerald-100">
            <div className="text-xl font-bold text-emerald-800 flex items-center gap-2">
-             <TrendingUp className="w-6 h-6" /> ResellHub
+             <img src="/src/assets/egrocifylogo.png" alt="eGrocify" className="h-8 w-auto" />
            </div>
         </div>
         
         <div className="p-4 space-y-2 flex-1">
+           <button onClick={() => setActiveTab('home')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'home' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+               <TrendingUp size={18} /> Home
+           </button>
            <button onClick={() => setActiveTab('products')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'products' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
-               <Package size={18} /> Products
+               <ShoppingCart size={18} /> Products
+           </button>
+           <button onClick={() => setActiveTab('auto-sell')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'auto-sell' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+               <Zap size={18} /> Auto-Sell {activeOrders.length > 0 && <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{activeOrders.length}</span>}
            </button>
            <button onClick={() => setActiveTab('orders')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'orders' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
-               <ClipboardList size={18} /> My Orders
-           </button>
-           <button onClick={() => setActiveTab('plan')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'plan' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
-               <CreditCard size={18} /> My Plan
+               <ClipboardList size={18} /> Orders
            </button>
            <button onClick={() => setActiveTab('wallet')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'wallet' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
                <Wallet size={18} /> Wallet
@@ -496,7 +431,6 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
                 </div>
                 <div className="overflow-hidden">
                     <p className="text-sm font-bold truncate">{user.name}</p>
-                    <p className="text-[10px] text-slate-500 uppercase">{plan.name} Plan</p>
                 </div>
             </div>
         </div>
@@ -507,15 +441,135 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
         
         {/* TOP HEADER */}
         <header className="h-16 bg-white border-b border-emerald-100 flex items-center justify-between px-8 z-10">
-             <h2 className="text-xl font-bold text-slate-800 capitalize">{activeTab.replace('-', ' ')}</h2>
+             <h2 className="text-xl font-bold text-slate-800 capitalize">{activeTab === 'home' ? 'Welcome' : activeTab.replace('-', ' ')}</h2>
              <NotificationBell />
         </header>
 
         <main className="flex-1 p-8 overflow-y-auto">
             
+            {/* --- TAB 0: HOME / WELCOME --- */}
+            {activeTab === 'home' && (
+                <div className="space-y-6 animate-in fade-in duration-500">
+                    {/* Welcome Banner */}
+                    <div className="bg-gradient-to-r from-emerald-600 to-emerald-800 text-white p-8 rounded-xl shadow-lg">
+                        <h1 className="text-2xl font-bold mb-2">Welcome back, {user.name}! 👋</h1>
+                        <p className="text-emerald-100">Track your earnings and manage your reselling business all in one place.</p>
+                    </div>
+
+                    {/* Quick Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                                    <Wallet className="w-5 h-5 text-emerald-600" />
+                                </div>
+                                <span className="text-sm text-slate-500">Wallet Balance</span>
+                            </div>
+                            <p className="text-2xl font-bold text-emerald-700">PKR {currentBalance.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                                    <Zap className="w-5 h-5 text-amber-600" />
+                                </div>
+                                <span className="text-sm text-slate-500">Active Orders</span>
+                            </div>
+                            <p className="text-2xl font-bold text-amber-700">{activeOrders.length}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                    <ClipboardList className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <span className="text-sm text-slate-500">Completed Orders</span>
+                            </div>
+                            <p className="text-2xl font-bold text-blue-700">{completedOrders}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                                    <TrendingUp className="w-5 h-5 text-purple-600" />
+                                </div>
+                                <span className="text-sm text-slate-500">Total Earnings</span>
+                            </div>
+                            <p className="text-2xl font-bold text-purple-700">PKR {Math.round(totalEarnings).toLocaleString()}</p>
+                        </div>
+                    </div>
+
+                    {/* Quick Actions / Info Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {/* Products Card */}
+                        <div 
+                            onClick={() => setActiveTab('products')}
+                            className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm hover:shadow-md hover:border-emerald-300 cursor-pointer transition-all group"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                                    <ShoppingCart className="w-6 h-6 text-emerald-600" />
+                                </div>
+                                <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
+                            </div>
+                            <h3 className="font-bold text-slate-800 mb-1">Browse Products</h3>
+                            <p className="text-sm text-slate-500">Explore products to resell. Choose from various categories and price ranges.</p>
+                        </div>
+
+                        {/* Auto-Sell Card */}
+                        <div 
+                            onClick={() => setActiveTab('auto-sell')}
+                            className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm hover:shadow-md hover:border-emerald-300 cursor-pointer transition-all group"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                                    <Zap className="w-6 h-6 text-amber-600" />
+                                </div>
+                                <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-amber-600 group-hover:translate-x-1 transition-all" />
+                            </div>
+                            <h3 className="font-bold text-slate-800 mb-1">Auto-Sell Orders</h3>
+                            <p className="text-sm text-slate-500">Track your active orders. Products sell automatically within 30 days.</p>
+                        </div>
+
+                        {/* Wallet Card */}
+                        <div 
+                            onClick={() => setActiveTab('wallet')}
+                            className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm hover:shadow-md hover:border-emerald-300 cursor-pointer transition-all group"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                                    <CreditCard className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                            </div>
+                            <h3 className="font-bold text-slate-800 mb-1">Withdraw Earnings</h3>
+                            <p className="text-sm text-slate-500">Withdraw your earnings to your bank account. Minimum PKR 1,000.</p>
+                        </div>
+
+                        {/* Referrals Card */}
+                        <div 
+                            onClick={() => setActiveTab('referrals')}
+                            className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm hover:shadow-md hover:border-emerald-300 cursor-pointer transition-all group"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                                    <Users className="w-6 h-6 text-purple-600" />
+                                </div>
+                                <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+                            </div>
+                            <h3 className="font-bold text-slate-800 mb-1">Refer Friends</h3>
+                            <p className="text-sm text-slate-500">Share your referral link and earn commissions from new registrants.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* --- TAB 1: PRODUCTS --- */}
             {activeTab === 'products' && (
              <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg mb-4">
+                    <p className="text-amber-800 text-sm">
+                        <Zap className="w-4 h-4 inline mr-2" />
+                        Buy products below. Your items will automatically sell within 30 days and you'll receive your profit in your wallet!
+                    </p>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {products.length === 0 ? (
                          <div className="col-span-full text-center py-12 text-slate-400">
@@ -526,7 +580,6 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
                         products.map((prod: any) => (
                             <div key={prod._id} className="bg-white rounded-xl border border-emerald-100 shadow-sm overflow-hidden hover:shadow-md transition-all group flex flex-col">
                                 <div className="h-48 bg-slate-100 flex items-center justify-center relative overflow-hidden">
-                                     {/* Base64 / URL Image Support */}
                                      {(prod.image && (prod.image.startsWith('http') || prod.image.startsWith('data:'))) ? (
                                          <img src={prod.image} alt={prod.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                                      ) : (
@@ -560,7 +613,7 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
                                           onClick={() => setSelectedProduct(prod)}
                                           disabled={prod.quantity <= 0}
                                         >
-                                          <ShoppingCart className="w-3 h-3" /> Resell Now
+                                          <ShoppingCart className="w-3 h-3" /> Buy Now
                                         </Button>
                                     </div>
                                 </div>
@@ -571,7 +624,68 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
              </div>
             )}
 
-            {/* --- TAB 2: MY ORDERS --- */}
+            {/* --- TAB 2: AUTO-SELL ORDERS --- */}
+            {activeTab === 'auto-sell' && (
+                <div className="space-y-6 animate-in fade-in duration-500">
+                    <div className="bg-emerald-900 text-white p-6 rounded-xl shadow-lg">
+                        <h3 className="text-xl font-bold mb-2">Active Auto-Sell Orders</h3>
+                        <p className="text-emerald-200">Track your products that are currently being sold automatically over 30 days.</p>
+                    </div>
+
+                    {activeOrders.length === 0 ? (
+                        <div className="text-center py-12 bg-white rounded-xl border border-emerald-100">
+                            <Zap className="w-16 h-16 text-emerald-200 mx-auto mb-4" />
+                            <p className="text-slate-500">No active auto-sell orders.</p>
+                            <Button onClick={() => setActiveTab('products')} className="mt-4 bg-emerald-600 hover:bg-emerald-700">
+                                Browse Products
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="grid gap-4">
+                            {activeOrders.map((order: any) => {
+                                const progress = (order.itemsSold / order.totalQuantity) * 100;
+                                return (
+                                    <div key={order._id} className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm">
+                                        <div className="flex items-start gap-4 mb-4">
+                                            <div className="w-16 h-16 bg-slate-100 rounded-lg overflow-hidden shrink-0">
+                                                {order.productImage ? (
+                                                    <img src={order.productImage} alt={order.productName} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <Package className="w-full h-full p-3 text-slate-300" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="font-bold text-slate-800">{order.productName}</h4>
+                                                <p className="text-sm text-slate-500">Quantity: {order.totalQuantity} | ROI: {order.roi}%</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                        <Zap className="w-3 h-3" /> Auto-Selling
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-slate-500">Sold</p>
+                                                <p className="font-bold text-emerald-600">{order.itemsSold} / {order.totalQuantity}</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="mb-2 flex justify-between text-sm font-medium">
+                                            <span>{Math.round(progress)}% Complete</span>
+                                            <span className="text-slate-500">30 days cycle</span>
+                                        </div>
+                                        
+                                        <div className="h-3 bg-emerald-50 rounded-full overflow-hidden border border-emerald-100">
+                                            <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${progress}%` }}></div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* --- TAB 3: MY ORDERS --- */}
             {activeTab === 'orders' && (
                 <div className="space-y-6 animate-in fade-in duration-500">
                     <div className="bg-white rounded-xl border border-emerald-100 shadow-sm overflow-hidden">
@@ -611,6 +725,8 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
                                                 <td className="px-6 py-4 font-bold text-emerald-700">PKR {order.totalAmount.toLocaleString()}</td>
                                                 <td className="px-6 py-4">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                                                        order.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                        order.status === 'auto-selling' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                                         order.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                                         order.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                                         'bg-slate-100 text-slate-700 border-slate-200'
@@ -629,60 +745,6 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
                         </div>
                     </div>
                 </div>
-            )}
-
-            {/* --- TAB 3: MY PLAN --- */}
-            {activeTab === 'plan' && (
-            <div className="space-y-6 animate-in fade-in duration-500">
-                <div className="bg-gradient-to-br from-emerald-900 to-emerald-800 text-white p-8 rounded-xl shadow-lg relative overflow-hidden">
-                     <div className="absolute top-0 right-0 p-32 bg-white/5 rounded-full blur-3xl -translate-y-10 translate-x-10"></div>
-                     <h3 className="text-2xl font-bold mb-1">{plan.name} Plan</h3>
-                     <p className="text-emerald-200 mb-6">Active Subscription</p>
-                     
-                     <div className="grid grid-cols-2 gap-8 border-t border-emerald-700/50 pt-6">
-                         <div>
-                             <p className="text-xs text-emerald-300 uppercase tracking-wider mb-1">Daily Sales</p>
-                             <p className="text-lg font-semibold">{plan.dailySales || '1-2 items'}</p>
-                         </div>
-                         <div>
-                             <p className="text-xs text-emerald-300 uppercase tracking-wider mb-1">Return Rate</p>
-                             <p className="text-lg font-semibold">{plan.returnRate || '4%'} Monthly</p>
-                         </div>
-                     </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm">
-                    <div className="flex justify-between items-center mb-6">
-                        <div>
-                            <h3 className="font-bold text-slate-700">Sales Simulation</h3>
-                            <p className="text-sm text-slate-500">Auto-selling process status</p>
-                        </div>
-                        <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full flex gap-2 items-center">
-                            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> Active
-                        </span>
-                    </div>
-                    
-                    <div className="mb-2 flex justify-between text-sm font-medium">
-                        <span>{Math.round(progress)}% Complete</span>
-                        <span>{investment.itemsSold} / {investment.totalStock} Sold</span>
-                    </div>
-                    
-                    <div className="h-4 bg-emerald-50 rounded-full overflow-hidden border border-emerald-100">
-                        <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${progress}%` }}></div>
-                    </div>
-
-                    <div className="mt-6 flex gap-4 text-sm">
-                        <div className="bg-emerald-50 px-4 py-3 rounded-lg flex-1">
-                                <span className="text-slate-500 block text-xs uppercase font-bold mb-1">Accumulated Profit</span>
-                                <span className="text-xl font-bold text-emerald-700">PKR {Math.round(investment.accumulatedReturn)}</span>
-                        </div>
-                        <div className="bg-slate-50 px-4 py-3 rounded-lg flex-1">
-                                <span className="text-slate-500 block text-xs uppercase font-bold mb-1">Remaining Stock</span>
-                                <span className="text-xl font-bold text-slate-700">{investment.totalStock - investment.itemsSold}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
             )}
 
             {/* --- TAB 4: WALLET --- */}
@@ -752,7 +814,6 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
       </div>
 
       {/* MODALS */}
-      {/* Product Purchase Modal is inside ActiveDashboard, used for buying items */}
       <ProductPurchaseModal 
         product={selectedProduct} 
         isOpen={!!selectedProduct} 
@@ -767,8 +828,6 @@ const ActiveDashboard = ({ investment, user, onLogout }: any) => {
 export default function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
-  const [activeInv, setActiveInv] = useState<any>(null);
-  const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [, setLocation] = useLocation();
 
   const handleLogout = () => {
@@ -787,10 +846,6 @@ export default function UserDashboard() {
 
       const userData = await userRes.json();
       setUser(userData);
-
-      const invRes = await fetch('/api/investments/active', { headers: { 'x-auth-token': token } });
-      const invData = await invRes.json();
-      setActiveInv(invData);
     } catch (err) {
       console.error(err);
       handleLogout();
@@ -811,26 +866,6 @@ export default function UserDashboard() {
   );
 
   return (
-    <>
-      {!activeInv ? (
-        <div className="relative">
-            <div className="absolute top-4 right-4 z-50">
-                <Button variant="ghost" onClick={handleLogout} className="text-red-600 hover:bg-red-50 gap-2">
-                    <LogOut size={16} /> Logout
-                </Button>
-            </div>
-            <PlanSelectionView onSelectPlan={setSelectedPlan} />
-        </div>
-      ) : (
-        <ActiveDashboard investment={activeInv} user={user} onLogout={handleLogout} />
-      )}
-
-      <PlanPaymentModal 
-        plan={selectedPlan} 
-        isOpen={!!selectedPlan} 
-        onClose={() => setSelectedPlan(null)}
-        onSuccess={() => { setSelectedPlan(null); loadData(); }}
-      />
-    </>
+    <UserDashboardContent user={user} onLogout={handleLogout} />
   );
 }

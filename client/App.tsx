@@ -15,6 +15,14 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Payment Return Handler Component
+const PaymentReturn = () => {
+  // This component just redirects to dashboard with query params
+  // The backend already redirects to /dashboard?payment=...
+  window.location.href = '/dashboard';
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -35,7 +43,10 @@ const App = () => (
         {/* 4. Admin Dashboard */}
         <Route path="/dashboard-admin" component={AdminDashboard} />
         
-        {/* 5. 404 Page (Catch-all) */}
+        {/* 5. Payment Return Handler (redirects to dashboard) */}
+        <Route path="/payment-return" component={PaymentReturn} />
+        
+        {/* 6. 404 Page (Catch-all) */}
         <Route component={NotFound} />
       </Switch>
 

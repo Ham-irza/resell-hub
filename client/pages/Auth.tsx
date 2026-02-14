@@ -102,13 +102,12 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen w-full flex bg-white">
-      {/* Left Side (Visuals) */}
+      {/* Left Side (Visuals) - Hidden on mobile, shown on large screens */}
       <div className="hidden lg:flex w-1/2 bg-emerald-900 text-white p-12 flex-col justify-between relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
         <div className="z-10">
           <div className="flex items-center gap-2 text-2xl font-bold mb-8">
-            <TrendingUp className="w-8 h-8 text-emerald-400" />
-            ResellHub
+            <img src="/src/assets/egrocifylogo.png" alt="eGrocify" className="h-10 w-auto" />
           </div>
           <h1 className="text-4xl font-bold leading-tight mb-4">
             Start your journey to <br/> financial freedom today.
@@ -116,9 +115,9 @@ export default function AuthPage() {
         </div>
       </div>
 
-      {/* Right Side (Form) */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-emerald-50/30">
-        <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-2xl shadow-xl border border-emerald-100">
+      {/* Right Side (Form) - Full width on mobile */}
+      <div className="flex-1 flex items-center justify-center p-4 md:p-8 bg-emerald-50/30">
+        <div className="w-full max-w-md space-y-6 bg-white p-6 md:p-8 rounded-2xl shadow-xl border border-emerald-100">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-slate-900">
               {isLogin ? 'Welcome Back' : 'Create an Account'}

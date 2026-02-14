@@ -51,8 +51,7 @@ const generatePaymentHash = (paymentData) => {
 const createHostedPaymentForm = (orderData) => {
   validateCredentials();
 
-  // Use the order's ID as the transaction ID for consistency
-  const transactionId = orderData.orderId || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const transactionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const amount = Math.round(orderData.amount * 100); // Convert to cents
 
   const paymentParams = {
@@ -61,8 +60,8 @@ const createHostedPaymentForm = (orderData) => {
     TransactionID: transactionId,
     Amount: amount,
     Description: orderData.description || 'Purchase',
-    ReturnURL: orderData.returnUrl || process.env.VITE_APP_URL + '/payment-return?orderId=' + transactionId,
-    PostURL: process.env.VITE_APP_URL + '/api/payment/callback?orderId=' + transactionId,
+    ReturnURL: orderData.returnUrl || process.env.VITE_APP_URL + '/payment-callback',
+    PostURL: process.env.VITE_APP_URL + '/payment-ipn',
     ExpireDate: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
     CharacterEncoding: 'UTF-8',
     CurrencyCode: '586' // PKR currency code
@@ -72,17 +71,10 @@ const createHostedPaymentForm = (orderData) => {
   const hashString = `${paymentParams.MerchantId}${paymentParams.StoreID}${paymentParams.TransactionID}${paymentParams.Amount}`;
   paymentParams.RequestHash = generateHash(hashString);
 
-  // Determine the correct API URL based on mode
-  const isTest = process.env.PAYMENT_MODE === 'TEST';
-  const baseUrl = isTest 
-    ? 'https://sandbox.bankalfalah.com/HS/api'
-    : (process.env.ALFALAH_API_URL || 'https://payments.bankalfalah.com/HS/api');
-
   return {
     ...paymentParams,
-    apiUrl: baseUrl,
-    paymentPageUrl: baseUrl + '/v1/StdPaymentEntry',
-    isTest: isTest
+    apiUrl: process.env.ALFALAH_API_URL,
+    isTest: process.env.PAYMENT_MODE === 'TEST'
   };
 };
 
