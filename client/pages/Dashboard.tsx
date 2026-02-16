@@ -3,7 +3,7 @@ import {
   Wallet, TrendingUp, Users, Bell, 
   Check, X, ShieldCheck, Loader2, Copy, LogOut, Clock,
   Package, ShoppingBag, Minus, Plus, ShoppingCart,
-  ClipboardList, Search, Zap, ArrowRight, CreditCard
+  ClipboardList, Search, Zap, ArrowRight, CreditCard, Menu
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from 'wouter'; 
@@ -392,31 +392,87 @@ const UserDashboardContent = ({ user, onLogout }: any) => {
   return (
     <div className="flex h-screen bg-emerald-50/30">
       
-      {/* SIDEBAR */}
+      {/* SIDEBAR - Desktop */}
       <aside className="w-64 bg-white border-r border-emerald-100 hidden md:flex flex-col z-20">
-        <div className="p-6 border-b border-emerald-100">
+        <div className="p-4 lg:p-6 border-b border-emerald-100">
            <div className="text-xl font-bold text-emerald-800 flex items-center gap-2">
-             <img src={logo} alt="eGrocify" className="h-8 w-auto" />
+             <img src={logo} alt="eGrocify" className="h-6 lg:h-8 w-auto" />
            </div>
         </div>
         
+        <div className="p-2 lg:p-4 space-y-1 lg:space-y-2 flex-1">
+           <button onClick={() => setActiveTab('home')} className={`w-full flex items-center gap-3 px-3 lg:px-4 py-2 lg:py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'home' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+               <TrendingUp size={18} /> <span className="hidden lg:inline">Home</span>
+           </button>
+           <button onClick={() => setActiveTab('products')} className={`w-full flex items-center gap-3 px-3 lg:px-4 py-2 lg:py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'products' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+               <ShoppingCart size={18} /> <span className="hidden lg:inline">Products</span>
+           </button>
+           <button onClick={() => setActiveTab('auto-sell')} className={`w-full flex items-center gap-3 px-3 lg:px-4 py-2 lg:py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'auto-sell' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+               <Zap size={18} /> <span className="hidden lg:inline">Auto-Sell</span> {activeOrders.length > 0 && <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{activeOrders.length}</span>}
+           </button>
+           <button onClick={() => setActiveTab('orders')} className={`w-full flex items-center gap-3 px-3 lg:px-4 py-2 lg:py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'orders' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+               <ClipboardList size={18} /> <span className="hidden lg:inline">Orders</span>
+           </button>
+           <button onClick={() => setActiveTab('wallet')} className={`w-full flex items-center gap-3 px-3 lg:px-4 py-2 lg:py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'wallet' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+               <Wallet size={18} /> <span className="hidden lg:inline">Wallet</span>
+           </button>
+           <button onClick={() => setActiveTab('referrals')} className={`w-full flex items-center gap-3 px-3 lg:px-4 py-2 lg:py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'referrals' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+               <Users size={18} /> <span className="hidden lg:inline">Referrals</span>
+           </button>
+        </div>
+
+        <div className="p-2 lg:p-4 border-t border-emerald-100 space-y-2 lg:space-y-4">
+             <button onClick={onLogout} className="w-full flex items-center gap-3 px-3 lg:px-4 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
+                <LogOut size={18} /> <span className="hidden lg:inline">Log Out</span>
+             </button>
+
+             <div className="flex items-center gap-3 px-2">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700 text-xs">
+                    {user.name.charAt(0)}
+                </div>
+                <div className="overflow-hidden">
+                    <p className="text-sm font-bold truncate">{user.name}</p>
+                </div>
+            </div>
+        </div>
+      </aside>
+
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 md:hidden z-30"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <div className={`fixed md:hidden inset-y-0 left-0 z-40 w-64 bg-white border-r border-emerald-100 transform transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-4 border-b border-emerald-100 flex justify-between items-center">
+           <div className="text-xl font-bold text-emerald-800 flex items-center gap-2">
+             <img src={logo} alt="eGrocify" className="h-8 w-auto" />
+           </div>
+           <button onClick={() => setSidebarOpen(false)} className="p-2 hover:bg-slate-100 rounded-lg">
+             <X className="w-5 h-5 text-slate-600" />
+           </button>
+        </div>
+        
         <div className="p-4 space-y-2 flex-1">
-           <button onClick={() => setActiveTab('home')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'home' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+           <button onClick={() => handleTabChange('home')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'home' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
                <TrendingUp size={18} /> Home
            </button>
-           <button onClick={() => setActiveTab('products')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'products' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+           <button onClick={() => handleTabChange('products')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'products' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
                <ShoppingCart size={18} /> Products
            </button>
-           <button onClick={() => setActiveTab('auto-sell')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'auto-sell' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+           <button onClick={() => handleTabChange('auto-sell')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'auto-sell' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
                <Zap size={18} /> Auto-Sell {activeOrders.length > 0 && <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{activeOrders.length}</span>}
            </button>
-           <button onClick={() => setActiveTab('orders')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'orders' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+           <button onClick={() => handleTabChange('orders')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'orders' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
                <ClipboardList size={18} /> Orders
            </button>
-           <button onClick={() => setActiveTab('wallet')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'wallet' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+           <button onClick={() => handleTabChange('wallet')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'wallet' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
                <Wallet size={18} /> Wallet
            </button>
-           <button onClick={() => setActiveTab('referrals')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'referrals' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
+           <button onClick={() => handleTabChange('referrals')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === 'referrals' ? "bg-emerald-100 text-emerald-800" : "text-slate-600 hover:bg-slate-50"}`}>
                <Users size={18} /> Referrals
            </button>
         </div>
@@ -435,30 +491,42 @@ const UserDashboardContent = ({ user, onLogout }: any) => {
                 </div>
             </div>
         </div>
-      </aside>
+      </div>
 
       {/* MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         
         {/* TOP HEADER */}
-        <header className="h-16 bg-white border-b border-emerald-100 flex items-center justify-between px-8 z-10">
-             <h2 className="text-xl font-bold text-slate-800 capitalize">{activeTab === 'home' ? 'Welcome' : activeTab.replace('-', ' ')}</h2>
+        <header className="h-14 md:h-16 bg-white border-b border-emerald-100 flex items-center justify-between px-3 md:px-8 z-10">
+             <div className="flex items-center gap-3">
+               <button 
+                 onClick={() => setSidebarOpen(!sidebarOpen)}
+                 className="md:hidden p-2 hover:bg-emerald-50 rounded-lg"
+               >
+                 {sidebarOpen ? (
+                   <X className="w-6 h-6 text-slate-600" />
+                 ) : (
+                   <Menu className="w-6 h-6 text-slate-600" />
+                 )}
+               </button>
+               <h2 className="text-xl font-bold text-slate-800 capitalize">{activeTab === 'home' ? 'Welcome' : activeTab.replace('-', ' ')}</h2>
+             </div>
              <NotificationBell />
         </header>
 
-        <main className="flex-1 p-8 overflow-y-auto">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
             
             {/* --- TAB 0: HOME / WELCOME --- */}
             {activeTab === 'home' && (
-                <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="space-y-4 md:space-y-6 animate-in fade-in duration-500">
                     {/* Welcome Banner */}
-                    <div className="bg-gradient-to-r from-emerald-600 to-emerald-800 text-white p-8 rounded-xl shadow-lg">
-                        <h1 className="text-2xl font-bold mb-2">Welcome back, {user.name}! 👋</h1>
-                        <p className="text-emerald-100">Track your earnings and manage your reselling business all in one place.</p>
+                    <div className="bg-gradient-to-r from-emerald-600 to-emerald-800 text-white p-4 md:p-8 rounded-xl shadow-lg">
+                        <h1 className="text-lg md:text-2xl font-bold mb-2">Welcome back, {user.name}! 👋</h1>
+                        <p className="text-emerald-100 text-sm md:text-base">Track your earnings and manage your reselling business all in one place.</p>
                     </div>
 
                     {/* Quick Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                         <div className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm">
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
@@ -627,10 +695,10 @@ const UserDashboardContent = ({ user, onLogout }: any) => {
 
             {/* --- TAB 2: AUTO-SELL ORDERS --- */}
             {activeTab === 'auto-sell' && (
-                <div className="space-y-6 animate-in fade-in duration-500">
-                    <div className="bg-emerald-900 text-white p-6 rounded-xl shadow-lg">
-                        <h3 className="text-xl font-bold mb-2">Active Auto-Sell Orders</h3>
-                        <p className="text-emerald-200">Track your products that are currently being sold automatically over 30 days.</p>
+                <div className="space-y-4 md:space-y-6 animate-in fade-in duration-500">
+                    <div className="bg-emerald-900 text-white p-4 md:p-6 rounded-xl shadow-lg">
+                        <h3 className="text-lg md:text-xl font-bold mb-2">Active Auto-Sell Orders</h3>
+                        <p className="text-emerald-200 text-sm">Track your products that are currently being sold automatically over 30 days.</p>
                     </div>
 
                     {activeOrders.length === 0 ? (
@@ -642,12 +710,12 @@ const UserDashboardContent = ({ user, onLogout }: any) => {
                             </Button>
                         </div>
                     ) : (
-                        <div className="grid gap-4">
+                        <div className="grid gap-3 md:gap-4">
                             {activeOrders.map((order: any) => {
                                 const progress = (order.itemsSold / order.totalQuantity) * 100;
                                 return (
-                                    <div key={order._id} className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm">
-                                        <div className="flex items-start gap-4 mb-4">
+                                    <div key={order._id} className="bg-white p-4 md:p-6 rounded-xl border border-emerald-100 shadow-sm">
+                                        <div className="flex items-start gap-3 md:gap-4 mb-4">
                                             <div className="w-16 h-16 bg-slate-100 rounded-lg overflow-hidden shrink-0">
                                                 {order.productImage ? (
                                                     <img src={order.productImage} alt={order.productName} className="w-full h-full object-cover" />
@@ -688,13 +756,13 @@ const UserDashboardContent = ({ user, onLogout }: any) => {
 
             {/* --- TAB 3: MY ORDERS --- */}
             {activeTab === 'orders' && (
-                <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="space-y-4 md:space-y-6 animate-in fade-in duration-500">
                     <div className="bg-white rounded-xl border border-emerald-100 shadow-sm overflow-hidden">
-                        <div className="p-6 border-b border-emerald-100 flex justify-between items-center">
+                        <div className="p-4 md:p-6 border-b border-emerald-100 flex flex-col md:flex-row justify-between items-center gap-4">
                             <h3 className="font-bold text-slate-800">Order History</h3>
-                            <div className="relative">
+                            <div className="relative w-full md:w-auto">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                <input type="text" placeholder="Search orders..." className="pl-9 pr-4 py-2 text-sm border border-emerald-200 rounded-md w-64 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                                <input type="text" placeholder="Search orders..." className="pl-9 pr-4 py-2 text-sm border border-emerald-200 rounded-md w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                             </div>
                         </div>
                         <div className="overflow-x-auto">
@@ -790,6 +858,12 @@ const UserDashboardContent = ({ user, onLogout }: any) => {
                     </div>
                     <h2 className="text-2xl font-bold text-slate-800 mb-2">Refer & Earn</h2>
                     <p className="text-slate-600 mb-6">Share your unique link. Earn commission on every new reseller who joins via your link.</p>
+                    
+                    {/* Commission Display */}
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 mb-6">
+                        <p className="text-sm text-emerald-600 mb-1">Commission per Referral</p>
+                        <p className="text-3xl font-bold text-emerald-700">PKR 10,000</p>
+                    </div>
                     
                     <div className="flex gap-2 items-center justify-center max-w-lg mx-auto">
                         <code className="flex-1 bg-slate-50 p-3 rounded-lg text-emerald-800 font-mono text-sm overflow-hidden text-ellipsis whitespace-nowrap border border-slate-200 text-left">

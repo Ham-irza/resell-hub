@@ -30,7 +30,7 @@ router.post('/buy', auth, async (req, res) => {
         const roi = product.roi || 0;
         const expectedProfit = (totalAmount * roi) / 100;
 
-        // 4. Create Order Record with Auto-Sell fields
+        // 4. Create Order Record - Status will be 'approved' and then admin can start auto-sell
         const newOrder = new Order({
             user: req.user.id,
             product: product._id,
@@ -38,8 +38,8 @@ router.post('/buy', auth, async (req, res) => {
             productImage: product.image,
             quantity: Number(quantity),
             totalAmount: totalAmount,
-            status: 'auto-selling', // Start auto-sell immediately
-            // Auto-sell tracking fields
+            status: 'approved', // Order approved, waiting for admin to start auto-sell
+            // Auto-sell tracking fields (will be activated when admin starts auto-sell)
             itemsSold: 0,
             totalQuantity: Number(quantity),
             expectedProfit: expectedProfit,
@@ -55,7 +55,7 @@ router.post('/buy', auth, async (req, res) => {
         await product.save();
 
         res.json({ 
-            msg: "Order placed successfully! Auto-sell has started.", 
+            msg: "Order placed successfully! Your order is approved and will start auto-selling once the admin activates it.", 
             order: newOrder 
         });
 
@@ -80,14 +80,16 @@ router.get('/orders', auth, async (req, res) => {
 });
 
 // @route   GET api/store/active-orders
-// @desc    Get user's active auto-selling orders
+// @desc    Get user's active auto-selling orders (including orders over 30 days)
 // @access  Private
 router.get('/active-orders', auth, async (req, res) => {
     try {
+        // Get all orders with status 'auto-selling' (includes orders of any age)
         const activeOrders = await Order.find({ 
             user: req.user.id, 
             status: 'auto-selling' 
         }).sort({ createdAt: -1 });
+        
         res.json(activeOrders);
     } catch (err) {
         console.error(err.message);

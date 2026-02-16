@@ -142,7 +142,7 @@ router.get('/orders', [auth, admin], async (req, res) => {
 });
 
 // @route   PUT api/admin/orders/:id
-// @desc    Update order status (e.g. Processing -> Approved)
+// @desc    Update order status (e.g. Processing -> Approved -> Auto-Selling)
 // @access  Private (Admin only)
 router.put('/orders/:id', [auth, admin], async (req, res) => {
     const { status } = req.body;
@@ -156,6 +156,22 @@ router.put('/orders/:id', [auth, admin], async (req, res) => {
 
         // Update the status
         order.status = status;
+        
+        // If status is changed to 'auto-selling', initialize the auto-sell tracking
+        if (status === 'auto-selling') {
+            order.itemsSold = 0;
+            order.totalQuantity = order.quantity;
+            order.lastProcessedDate = new Date();
+            
+            // Create notification for user
+            const Notification = require('../models/Notification');
+            await Notification.create({
+                user: order.user,
+                message: `Your order for ${order.productName} has started auto-selling! It will sell over 30 days.`,
+                isRead: false
+            });
+        }
+        
         await order.save();
 
         // Return the updated order with user details populated so the UI updates instantly

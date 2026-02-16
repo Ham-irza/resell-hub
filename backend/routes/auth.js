@@ -36,6 +36,27 @@ router.post('/register', async (req, res) => {
       const referrer = await User.findOne({ referralCode });
       if (referrer) {
         user.referredBy = referrer._id;
+        
+        // Add commission to referrer's wallet (PKR 10,000)
+        referrer.walletBalance = (referrer.walletBalance || 0) + 10000;
+        await referrer.save();
+        
+        // Create transaction record for referrer
+        const Transaction = require('../models/Transaction');
+        await Transaction.create({
+          user: referrer._id,
+          type: 'referral_commission',
+          amount: 10000,
+          status: 'approved',
+          description: `Referral commission for inviting new user: ${name}`
+        });
+        
+        // Create notification for referrer
+        const Notification = require('../models/Notification');
+        await Notification.create({
+          user: referrer._id,
+          message: `🎉 You earned PKR 10,000 commission for referring new user ${name}!`
+        });
       }
     }
 
