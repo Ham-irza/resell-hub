@@ -23,6 +23,10 @@ const startSimulation = () => {
 
       console.log(`Processing ${activeOrders.length} orders for auto-sell...`);
 
+      // Get today's date string for comparison (to prevent duplicate notifications)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
       // 2. Loop through each order and simulate sales
       for (const order of activeOrders) {
         const remainingItems = order.totalQuantity - order.itemsSold;
@@ -53,6 +57,23 @@ const startSimulation = () => {
         if (itemsToSellToday > remainingItems) {
           itemsToSellToday = remainingItems;
         }
+
+        // Check if we've already processed this order today (prevent duplicate notifications)
+        const lastProcessed = order.lastProcessedDate ? new Date(order.lastProcessedDate) : null;
+        if (lastProcessed) {
+          lastProcessed.setHours(0, 0, 0, 0);
+          // If already processed today, skip this order
+          if (lastProcessed.getTime() === today.getTime()) {
+            console.log(`⏭️ SKIP: Order ${order._id} already processed today`);
+            continue;
+          }
+        }
+        
+        // If no items sold today (catch-up scenario), don't create notification
+        if (itemsToSellToday <= 0) {
+          console.log(`⏭️ SKIP: Order ${order._id} - no new items sold today`);
+          continue;
+        }
         
         // Calculate profit per item based on ROI
         const profitPerItem = (order.pricePerItem * order.roi) / 100;
@@ -67,50 +88,65 @@ const startSimulation = () => {
           order.itemsSold = order.totalQuantity;
           order.status = 'completed';
           
-          // Calculate total profit
-          const totalProfit = profitPerItem * order.totalQuantity;
-          const totalPayout = order.totalAmount + totalProfit;
-          
+          // Save order first
           await order.save();
 
-          // Find user and add to wallet
+          // Add profit for the FINAL day's items sold (this was NOT added in else block)
+          const finalDayProfit = profitPerItem * itemsToSellToday;
+          
           const user = await User.findById(order.user);
           if (user) {
-            user.walletBalance += totalPayout;
+            user.walletBalance += finalDayProfit;
             await user.save();
             
-            // Log the Payout Transaction
+            // Log the Completion Transaction with the final profit
             await Transaction.create({
               user: user._id,
               type: 'profit_payout',
-              amount: totalPayout,
+              amount: finalDayProfit,
               status: 'approved',
-              description: `Auto-sell Complete: ${order.productName} (${order.totalQuantity} items)`
+              description: `Auto-sell Complete: ${order.productName} - Final profit for last ${itemsToSellToday} items`
             });
 
             // Notify User
             await Notification.create({
               user: user._id,
-              message: `🎉 All ${order.totalQuantity} items of "${order.productName}" sold! Payout of PKR ${totalPayout.toLocaleString()} added to wallet.`
+              message: `🎉 All ${order.totalQuantity} items of "${order.productName}" sold! Final profit of PKR ${Math.round(finalDayProfit).toLocaleString()} added to wallet.`
             });
 
             // Send Email
-            sendPayoutEmail(user.email, user.name, totalPayout, order.productName);
+            sendPayoutEmail(user.email, user.name, order.expectedProfit || 0, order.productName);
 
-            console.log(`💰 PAYOUT: User ${user.name} received PKR ${totalPayout} from ${order.productName}`);
+            console.log(`✅ COMPLETE: Order ${order._id} finished - final profit PKR ${Math.round(finalDayProfit)} added`);
           }
 
         } else {
-          // Not complete yet, just update progress
+          // Not complete yet, just update progress and add daily profit to wallet
           await order.save();
           
-          // Notify user of daily progress
-          await Notification.create({
-            user: order.user,
-            message: `📦 ${itemsToSellToday} item(s) of "${order.productName}" sold today! Profit: PKR ${Math.round(profitGainedToday)}`
-          });
+          // Add daily profit to user's wallet immediately
+          const user = await User.findById(order.user);
+          if (user) {
+            user.walletBalance += profitGainedToday;
+            await user.save();
 
-          console.log(`📈 UPDATE: Order ${order._id} - ${itemsToSellToday} items sold, ${order.itemsSold}/${order.totalQuantity} total`);
+            // Log daily profit transaction
+            await Transaction.create({
+              user: user._id,
+              type: 'daily_profit',
+              amount: profitGainedToday,
+              status: 'approved',
+              description: `Daily profit: ${itemsToSellToday} items of ${order.productName}`
+            });
+            
+            // Notify user of daily progress
+            await Notification.create({
+              user: order.user,
+              message: `📦 ${itemsToSellToday} item(s) of "${order.productName}" sold today! Profit: PKR ${Math.round(profitGainedToday).toLocaleString()} added to wallet.`
+            });
+
+            console.log(`📈 UPDATE: Order ${order._id} - ${itemsToSellToday} items sold, ${order.itemsSold}/${order.totalQuantity} total, Profit: PKR ${Math.round(profitGainedToday)}`);
+          }
         }
       }
       

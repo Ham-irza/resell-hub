@@ -45,47 +45,83 @@ router.get('/active', auth, async (req, res) => {
             return res.json(null);
         }
 
-        // --- SIMULATION LOGIC ---
+        // --- SIMULATION LOGIC (only run once per day) ---
         const now = new Date();
         const lastUpdate = new Date(investment.lastProcessedDate || investment.startDate);
-        const todayMidnight = new Date(now.setHours(0,0,0,0));
-        const lastMidnight = new Date(lastUpdate.setHours(0,0,0,0));
-        const diffTime = Math.abs(todayMidnight - lastMidnight);
-        const daysPassed = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        // Check if already processed today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const lastProcessed = new Date(lastUpdate);
+        lastProcessed.setHours(0, 0, 0, 0);
+        
+        // Only run if not already processed today
+        if (lastProcessed.getTime() !== today.getTime()) {
+            const todayMidnight = new Date(now.setHours(0,0,0,0));
+            const lastMidnight = new Date(lastUpdate.setHours(0,0,0,0));
+            const diffTime = Math.abs(todayMidnight - lastMidnight);
+            const daysPassed = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
 
-        // Get limits (Handle both naming conventions for safety)
-        const stockLimit = investment.totalStock || investment.plan.totalItems || 100;
+            // Get limits (Handle both naming conventions for safety)
+            const stockLimit = investment.totalStock || investment.plan.totalItems || 100;
 
-        if (daysPassed > 0 && investment.itemsSold < stockLimit) {
-            
-            // Handle naming mismatch for simulation
-            const min = investment.plan.dailyMinSales || 1;
-            // If strictly "dailySales" exists, use it as max, otherwise use dailyMaxSales
-            const max = investment.plan.dailyMaxSales || investment.plan.dailySales || 2;
-            const profitRate = investment.plan.returnPercentage || investment.plan.returnRate || 4.0;
+            if (daysPassed > 0 && investment.itemsSold < stockLimit) {
+                
+                // Handle naming mismatch for simulation
+                const min = investment.plan.dailyMinSales || 1;
+                // If strictly "dailySales" exists, use it as max, otherwise use dailyMaxSales
+                const max = investment.plan.dailyMaxSales || investment.plan.dailySales || 2;
+                const profitRate = investment.plan.returnPercentage || investment.plan.returnRate || 4.0;
 
-            let newSales = 0;
-            let newProfit = 0;
+                let newSales = 0;
+                let newProfit = 0;
 
-            for (let i = 0; i < daysPassed; i++) {
-                if (investment.itemsSold + newSales >= stockLimit) break;
+                for (let i = 0; i < daysPassed; i++) {
+                    if (investment.itemsSold + newSales >= stockLimit) break;
 
-                const actualSales = Math.floor(Math.random() * (max - min + 1)) + min;
-                const dailyProfit = (investment.plan.price * (profitRate / 100)) / 30;
+                    const actualSales = Math.floor(Math.random() * (max - min + 1)) + min;
+                    const dailyProfit = (investment.plan.price * (profitRate / 100)) / 30;
 
-                newSales += actualSales;
-                newProfit += dailyProfit;
+                    newSales += actualSales;
+                    newProfit += dailyProfit;
+                }
+
+                // Only update if there are new sales
+                if (newSales > 0) {
+                    investment.itemsSold += newSales;
+                    investment.accumulatedReturn += newProfit;
+                    investment.lastProcessedDate = new Date();
+
+                    // CRITICAL FIX: Actually add profit to user's wallet!
+                    const user = await User.findById(req.user.id);
+                    if (user && newProfit > 0) {
+                        user.walletBalance += newProfit;
+                        await user.save();
+                        
+                        // Also create transaction record
+                        await Transaction.create({
+                            user: user._id,
+                            type: 'investment_profit',
+                            amount: newProfit,
+                            status: 'approved',
+                            description: `Daily profit from ${investment.plan.name} investment`
+                        });
+                    }
+
+                    if (investment.itemsSold >= stockLimit) {
+                        investment.status = 'completed';
+                        
+                        // Add final payout to wallet (capital + remaining profit)
+                        const finalPayout = investment.plan.price + (investment.expectedProfit - investment.accumulatedReturn);
+                        if (user && finalPayout > 0) {
+                            user.walletBalance += finalPayout;
+                            await user.save();
+                        }
+                    }
+
+                    await investment.save();
+                }
             }
-
-            investment.itemsSold += newSales;
-            investment.accumulatedReturn += newProfit;
-            investment.lastProcessedDate = new Date();
-
-            if (investment.itemsSold >= stockLimit) {
-                investment.status = 'completed';
-            }
-
-            await investment.save();
         }
 
         res.json(investment);
