@@ -90,6 +90,12 @@ router.get('/active-orders', auth, async (req, res) => {
             status: 'auto-selling' 
         }).sort({ createdAt: -1 });
         
+        // Log for debugging
+        console.log(`[BALANCE LOG] Fetched ${activeOrders.length} active orders for user ${req.user.id}`);
+        activeOrders.forEach(order => {
+            console.log(`[BALANCE LOG] Order ${order._id}: ${order.itemsSold}/${order.totalQuantity} items sold, Expected Profit: PKR ${order.expectedProfit}`);
+        });
+        
         res.json(activeOrders);
     } catch (err) {
         console.error(err.message);

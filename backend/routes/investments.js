@@ -45,6 +45,9 @@ router.get('/active', auth, async (req, res) => {
             return res.json(null);
         }
 
+        // Get stock limit outside the block for use in response
+        const stockLimit = investment.totalStock || investment.plan.totalItems || 100;
+
         // --- SIMULATION LOGIC (only run once per day) ---
         const now = new Date();
         const lastUpdate = new Date(investment.lastProcessedDate || investment.startDate);
@@ -61,9 +64,6 @@ router.get('/active', auth, async (req, res) => {
             const lastMidnight = new Date(lastUpdate.setHours(0,0,0,0));
             const diffTime = Math.abs(todayMidnight - lastMidnight);
             const daysPassed = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-
-            // Get limits (Handle both naming conventions for safety)
-            const stockLimit = investment.totalStock || investment.plan.totalItems || 100;
 
             if (daysPassed > 0 && investment.itemsSold < stockLimit) {
                 
@@ -95,8 +95,12 @@ router.get('/active', auth, async (req, res) => {
                     // CRITICAL FIX: Actually add profit to user's wallet!
                     const user = await User.findById(req.user.id);
                     if (user && newProfit > 0) {
+                        const previousBalance = user.walletBalance;
                         user.walletBalance += newProfit;
                         await user.save();
+                        
+                        // Log balance addition for investment profit
+                        console.log(`[BALANCE LOG] Investment Profit - User ${user._id}, Previous Balance: PKR ${previousBalance}, Profit Added: PKR ${newProfit.toFixed(2)}, New Balance: PKR ${user.walletBalance}`);
                         
                         // Also create transaction record
                         await Transaction.create({
@@ -106,6 +110,8 @@ router.get('/active', auth, async (req, res) => {
                             status: 'approved',
                             description: `Daily profit from ${investment.plan.name} investment`
                         });
+                        
+                        console.log(`[BALANCE LOG] Investment ${investment.plan.name} - ${newSales} items sold, Profit: PKR ${newProfit.toFixed(2)}`);
                     }
 
                     if (investment.itemsSold >= stockLimit) {
@@ -114,8 +120,11 @@ router.get('/active', auth, async (req, res) => {
                         // Add final payout to wallet (capital + remaining profit)
                         const finalPayout = investment.plan.price + (investment.expectedProfit - investment.accumulatedReturn);
                         if (user && finalPayout > 0) {
+                            const balanceBeforeFinal = user.walletBalance;
                             user.walletBalance += finalPayout;
                             await user.save();
+                            
+                            console.log(`[BALANCE LOG] Investment Completed - User ${user._id}, Capital Return: PKR ${investment.plan.price}, Final Profit: PKR ${(finalPayout - investment.plan.price).toFixed(2)}, Balance Before: PKR ${balanceBeforeFinal}, Balance After: PKR ${user.walletBalance}`);
                         }
                     }
 
@@ -124,7 +133,18 @@ router.get('/active', auth, async (req, res) => {
             }
         }
 
-        res.json(investment);
+        // Include balance logs in response for frontend developer tools
+        const user = await User.findById(req.user.id);
+        res.json({
+            ...investment.toObject(),
+            _balanceLogs: {
+                currentWalletBalance: user ? user.walletBalance : 0,
+                totalAccumulatedReturn: investment.accumulatedReturn,
+                itemsSold: investment.itemsSold,
+                totalItems: stockLimit,
+                timestamp: new Date().toISOString()
+            }
+        });
 
     } catch (err) {
         console.error(err.message);

@@ -272,6 +272,10 @@ const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
 
 // 3. Main Dashboard Component
 const UserDashboardContent = ({ user, onLogout }: any) => {
+  // Always log when dashboard renders
+  console.log('%c🏦 DASHBOARD LOADED - BALANCE LOGS ACTIVE 🏦', 'background: #10b981; color: white; font-size: 16px; padding: 8px; border-radius: 4px;');
+  console.log('Current wallet balance:', user?.walletBalance);
+  
   const [activeTab, setActiveTab] = useState("home");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [msg, setMsg] = useState("");
@@ -342,7 +346,52 @@ const UserDashboardContent = ({ user, onLogout }: any) => {
     fetchProducts();
     fetchOrders();
     fetchActiveOrders();
+    fetchTransactionHistory();
   }, []);
+  
+  // Fetch transaction history for balance calculation breakdown
+  const fetchTransactionHistory = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch('/api/wallet/history', { 
+        headers: { 'x-auth-token': token || '' } 
+      });
+      if(res.ok) {
+        const transactions = await res.json();
+        // Log all transactions as balance calculation breakdown
+        console.log('%c💰 BALANCE CALCULATION BREAKDOWN 💰', 'background: #6366f1; color: white; font-size: 14px; padding: 8px;');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
+        let runningBalance = 0;
+        // Sort by date ascending to show calculation in order
+        const sortedTx = [...transactions].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        
+        sortedTx.forEach((tx: any, index: number) => {
+          const prevBalance = runningBalance;
+          if (tx.type === 'withdrawal' || tx.type === 'withdrawal_rejected') {
+            runningBalance -= tx.amount;
+          } else {
+            runningBalance += tx.amount;
+          }
+          
+          const typeIcon = tx.type === 'withdrawal' || tx.type === 'withdrawal_rejected' ? '➖' : '➕';
+          const typeColor = tx.type === 'withdrawal' || tx.type === 'withdrawal_rejected' ? '#ef4444' : '#10b981';
+          
+          console.log(`%c${index + 1}. ${typeIcon} ${tx.type.toUpperCase()}`, `color: ${typeColor}; font-weight: bold`);
+          console.log(`   💵 Amount: PKR ${tx.amount?.toLocaleString()}`);
+          console.log(`   📝 Description: ${tx.description || 'N/A'}`);
+          console.log(`   📅 Date: ${new Date(tx.createdAt).toLocaleString()}`);
+          console.log(`   📊 Balance: PKR ${prevBalance?.toLocaleString()} → PKR ${runningBalance?.toLocaleString()}`);
+          console.log('────────────────────────────────────────────────────────────────────');
+        });
+        
+        console.log(`%c✅ FINAL BALANCE: PKR ${runningBalance?.toLocaleString()}`, 'color: #10b981; font-weight: bold; font-size: 14px;');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
+    } catch(err) {
+      console.error("Failed to fetch transaction history", err);
+    }
+  };
 
   const handleWithdraw = async () => {
     if(!withdrawAmount) return;
@@ -360,6 +409,18 @@ const UserDashboardContent = ({ user, onLogout }: any) => {
         });
         const data = await res.json();
         if(!res.ok) throw new Error(data.msg);
+        
+        // Log balance calculation details to browser console for developer tools
+        if (data._balanceLogs) {
+          console.log('%c[BALANCE CALCULATION LOG - WITHDRAWAL]', 'color: #10b981; font-weight: bold; font-size: 12px;');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.log(`📊 Previous Balance: PKR ${data._balanceLogs.previousBalance?.toLocaleString()}`);
+          console.log(`💸 Amount Withdrawn: PKR ${data._balanceLogs.amountWithdrawn?.toLocaleString()}`);
+          console.log(`💰 New Balance: PKR ${data._balanceLogs.newBalance?.toLocaleString()}`);
+          console.log(`🕐 Timestamp: ${data._balanceLogs.timestamp}`);
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+        
         setMsg(`Success! New Balance: ${data.balance}`);
         setWithdrawAmount("");
     } catch(err: any) {
@@ -765,15 +826,59 @@ const UserDashboardContent = ({ user, onLogout }: any) => {
                                 <input type="text" placeholder="Search orders..." className="pl-9 pr-4 py-2 text-sm border border-emerald-200 rounded-md w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                             </div>
                         </div>
-                        <div className="overflow-x-auto">
+                        
+                        {/* Mobile Card View */}
+                        <div className="md:hidden">
+                            {orders.length === 0 ? (
+                                <div className="text-center py-12 text-slate-400">No orders placed yet.</div>
+                            ) : (
+                                <div className="divide-y divide-emerald-50">
+                                    {orders.map((order: any) => (
+                                        <div key={order._id} className="p-4 hover:bg-slate-50 transition-colors">
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-12 h-12 bg-slate-100 rounded-md overflow-hidden shrink-0 border border-slate-200">
+                                                    {order.productImage ? (
+                                                        <img src={order.productImage} alt={order.productName} className="w-full h-full object-cover" />
+                                                    ) : <Package className="w-full h-full p-2 text-slate-300" />}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-start gap-2">
+                                                        <h4 className="font-medium text-slate-800 truncate">{order.productName}</h4>
+                                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
+                                                            order.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                                            order.status === 'auto-selling' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                            order.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                                            order.status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                            'bg-slate-100 text-slate-700 border border-slate-200'
+                                                        }`}>
+                                                            {order.status || 'Processing'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center mt-2 text-sm">
+                                                        <span className="text-slate-500">Qty: {order.quantity}</span>
+                                                        <span className="font-bold text-emerald-700">PKR {order.totalAmount.toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="mt-1 text-xs text-slate-400">
+                                                        {new Date(order.createdAt).toLocaleDateString()}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-sm text-left">
                                 <thead className="bg-slate-50 text-slate-700 font-semibold">
                                     <tr>
-                                        <th className="px-6 py-4">Item</th>
-                                        <th className="px-6 py-4">Quantity</th>
-                                        <th className="px-6 py-4">Total</th>
-                                        <th className="px-6 py-4">Status</th>
-                                        <th className="px-6 py-4 text-right">Date</th>
+                                        <th className="px-4 lg:px-6 py-3 lg:py-4">Item</th>
+                                        <th className="px-4 lg:px-6 py-3 lg:py-4">Quantity</th>
+                                        <th className="px-4 lg:px-6 py-3 lg:py-4">Total</th>
+                                        <th className="px-4 lg:px-6 py-3 lg:py-4">Status</th>
+                                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-right">Date</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-emerald-50">
@@ -782,18 +887,20 @@ const UserDashboardContent = ({ user, onLogout }: any) => {
                                     ) : (
                                         orders.map((order: any) => (
                                             <tr key={order._id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="px-6 py-4 font-medium text-slate-800 flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-slate-100 rounded-md overflow-hidden shrink-0 border border-slate-200">
-                                                        {order.productImage ? (
-                                                            <img src={order.productImage} className="w-full h-full object-cover" />
-                                                        ) : <Package className="w-full h-full p-2 text-slate-300" />}
+                                                <td className="px-4 lg:px-6 py-3 lg:py-4 font-medium text-slate-800">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 bg-slate-100 rounded-md overflow-hidden shrink-0 border border-slate-200">
+                                                            {order.productImage ? (
+                                                                <img src={order.productImage} alt={order.productName} className="w-full h-full object-cover" />
+                                                            ) : <Package className="w-full h-full p-2 text-slate-300" />}
+                                                        </div>
+                                                        <span className="truncate max-w-[150px] lg:max-w-none">{order.productName}</span>
                                                     </div>
-                                                    {order.productName}
                                                 </td>
-                                                <td className="px-6 py-4">{order.quantity}</td>
-                                                <td className="px-6 py-4 font-bold text-emerald-700">PKR {order.totalAmount.toLocaleString()}</td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                                                <td className="px-4 lg:px-6 py-3 lg:py-4">{order.quantity}</td>
+                                                <td className="px-4 lg:px-6 py-3 lg:py-4 font-bold text-emerald-700">PKR {order.totalAmount.toLocaleString()}</td>
+                                                <td className="px-4 lg:px-6 py-3 lg:py-4">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${
                                                         order.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                                         order.status === 'auto-selling' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                                         order.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
@@ -803,7 +910,7 @@ const UserDashboardContent = ({ user, onLogout }: any) => {
                                                         {order.status || 'Processing'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-right text-slate-500 text-xs">
+                                                <td className="px-4 lg:px-6 py-3 lg:py-4 text-right text-slate-500 text-xs">
                                                     {new Date(order.createdAt).toLocaleDateString()}
                                                 </td>
                                             </tr>
@@ -920,6 +1027,18 @@ export default function UserDashboard() {
       if(!userRes.ok) throw new Error("Session Invalid");
 
       const userData = await userRes.json();
+      
+      // Log balance info from API response
+      console.log('%c[DATA LOADED - USER INFO]', 'color: #10b981; font-weight: bold;');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log(`👤 User: ${userData.name}`);
+      console.log(`💰 Wallet Balance: PKR ${userData.walletBalance?.toLocaleString()}`);
+      console.log(`📧 Email: ${userData.email}`);
+      if (userData._balanceInfo) {
+        console.log(`🕐 Last Updated: ${userData._balanceInfo.lastUpdated}`);
+      }
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
       setUser(userData);
     } catch (err) {
       console.error(err);

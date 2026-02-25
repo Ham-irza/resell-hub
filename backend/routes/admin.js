@@ -162,14 +162,7 @@ router.put('/orders/:id', [auth, admin], async (req, res) => {
             order.itemsSold = 0;
             order.totalQuantity = order.quantity;
             order.lastProcessedDate = new Date();
-            
-            // Create notification for user
-            const Notification = require('../models/Notification');
-            await Notification.create({
-                user: order.user,
-                message: `Your order for ${order.productName} has started auto-selling! It will sell over 30 days.`,
-                isRead: false
-            });
+            // Note: User notification only sent when auto-sell completes (in simulationScheduler.js)
         }
         
         await order.save();

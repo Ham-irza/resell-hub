@@ -51,10 +51,11 @@ router.post('/register', async (req, res) => {
           description: `Referral commission for inviting new user: ${name}`
         });
         
-        // Create notification for referrer
+        // Create notification for referrer (type: referral)
         const Notification = require('../models/Notification');
         await Notification.create({
           user: referrer._id,
+          type: 'referral',
           message: `🎉 You earned PKR 10,000 commission for referring new user ${name}!`
         });
       }
@@ -132,7 +133,18 @@ router.post('/login', async (req, res) => {
 router.get('/user', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
-    res.json(user);
+    
+    // Log user balance for debugging
+    console.log(`[BALANCE LOG] User ${user._id} loaded. Current wallet balance: PKR ${user.walletBalance}`);
+    
+    // Include balance calculation info in response
+    res.json({
+      ...user.toObject(),
+      _balanceInfo: {
+        walletBalance: user.walletBalance,
+        lastUpdated: new Date().toISOString()
+      }
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
