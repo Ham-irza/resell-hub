@@ -4,7 +4,12 @@ const NotificationSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true // <--- This ensures every notification MUST have an owner
+    required: true
+  },
+  type: {
+    type: String,
+    enum: ['referral', 'autosell_complete'],
+    required: true
   },
   message: {
     type: String,

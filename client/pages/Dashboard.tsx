@@ -127,8 +127,8 @@ const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
         setStep(2);
         try {
             const token = localStorage.getItem('token');
+            const safeProductName = product.name ? product.name.replace(/[^a-zA-Z0-9 ]/g, '') : 'Item';
             
-            // First, initiate payment through the payment gateway
             const paymentRes = await fetch('/api/payment/initiate', {
                 method: 'POST',
                 headers: { 
@@ -139,7 +139,7 @@ const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
                     productId: product._id, 
                     quantity: quantity,
                     amount: total,
-                    description: `Purchase: ${product.name} x${quantity}`
+                    description: `Purchase ${safeProductName} x${quantity}` 
                 })
             });
 
@@ -149,19 +149,28 @@ const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
                 throw new Error(paymentData.msg || paymentData.error || "Payment initiation failed");
             }
 
-            // If it's a hosted redirect (LIVE mode), redirect to payment page
-            if (paymentData.type === 'HOSTED_REDIRECT' && paymentData.formData) {
+            // --- THE FINAL REDIRECT LOGIC ---
+            if (paymentData.type === 'AUTH_TOKEN_REDIRECT' && paymentData.authToken) {
                 setIsRedirecting(true);
                 
-                // According to Alfa documentation, redirect with JSON data as query param
-                const redirectUrl = `${paymentData.formData.apiUrl}/Checkout?data=${encodeURIComponent(JSON.stringify(paymentData.formData))}`;
-                window.location.href = redirectUrl;
+                // 1. Ensure the URL ends with /Checkout
+                let checkoutUrl = paymentData.checkoutUrl;
+                if (!checkoutUrl.toLowerCase().endsWith('/checkout')) {
+                    checkoutUrl = checkoutUrl.replace(/\/$/, '') + '/Checkout';
+                }
+
+                // 2. Build the URL with encoded parameters
+                // Using AuthToken and ReturnURL as query params for a GET redirect
+                const finalUrl = `${checkoutUrl}?AuthToken=${encodeURIComponent(paymentData.authToken)}&ReturnURL=${encodeURIComponent(paymentData.returnUrl)}`;
+                
+                console.log("Redirecting to Bank Alfalah:", finalUrl);
+                
+                // 3. Perform the redirect
+                window.location.href = finalUrl;
                 return;
             }
 
-            // For TEST mode, just create the order directly
             if (paymentData.success) {
-                // Order was already created in the backend
                 setStep(3);
                 setTimeout(() => {
                     onSuccess();
@@ -171,6 +180,7 @@ const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
             }
 
         } catch (err: any) {
+            console.error("Payment Error:", err);
             alert(err.message || "Payment Failed");
             onClose();
             setStep(1);

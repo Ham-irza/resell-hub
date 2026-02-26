@@ -27,12 +27,49 @@ const OrderSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'processing', 'approved', 'cancelled'],
+    enum: ['pending', 'processing', 'approved', 'cancelled', 'auto-selling', 'completed'],
     default: 'processing' // Default to processing since payment "succeeded"
   },
   paymentMethod: {
     type: String,
     default: 'Bank Alfalah Gateway'
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['PENDING', 'COMPLETED', 'FAILED', 'CANCELLED'],
+    default: 'PENDING'
+  },
+  transactionId: {
+    type: String
+  },
+  bankResponse: {
+    type: Object
+  },
+  // --- AUTO-SELL TRACKING FIELDS ---
+  itemsSold: {
+    type: Number,
+    default: 0
+  },
+  totalQuantity: {
+    type: Number,
+    required: true
+  },
+  expectedProfit: {
+    type: Number,
+    default: 0
+  },
+  lastProcessedDate: {
+    type: Date,
+    default: Date.now
+  },
+  // Price per item (for profit calculation)
+  pricePerItem: {
+    type: Number,
+    required: true
+  },
+  roi: {
+    type: Number,
+    default: 0
   },
   createdAt: {
     type: Date,
