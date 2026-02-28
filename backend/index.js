@@ -47,12 +47,11 @@ app.use('/api/payment', require('./routes/payment'));
 
 // --- SERVE FRONTEND (FIXED PATH & ROUTE) ---
 
-// 1. Serve static files from "dist/spa" (Where your files actually are)
+// 1. Serve static files from "dist/spa"
 app.use(express.static(path.join(__dirname, '../dist/spa')));
 
-// 2. Handle React/Vue Routing (Using 'app.use' to prevent PathError crashes)
-// This catches any request that wasn't an API call or a static file.
-app.use((req, res) => {
+// 2. Handle Frontend Routing (Express 5 Safe Catch-All regex)
+app.get(/(.*)/, (req, res) => {
     res.sendFile(path.join(__dirname, '../dist/spa/index.html'));
 });
 
