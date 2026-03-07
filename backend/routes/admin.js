@@ -5,10 +5,11 @@ const admin = require('../middleware/adminMiddleware');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const Order = require('../models/Order');
-const { sendWithdrawalApprovedEmail } = require('../utils/emailService'); // <--- ADDED IMPORT
-const UserModel = require('../models/User');
-const Store = require('../models/Store');
+const { sendWithdrawalApprovedEmail } = require('../utils/emailService');
 const ProductModel = require('../models/Product');
+const Notification = require('../models/Notification');
+const Store = require('../models/Store');
+
 
 // @route   GET api/admin/stats
 // @desc    Get Global Dashboard Stats + ALL Activity
@@ -157,6 +158,20 @@ router.put('/orders/:id', [auth, admin], async (req, res) => {
         // Update the status
         order.status = status;
         
+        // If status is changed to 'approved', decrease product inventory
+        if (status === 'approved') {
+            // Use 'product' field instead of 'productId'
+            const product = await ProductModel.findById(order.product);
+            if (product) {
+                console.log(`Decreasing inventory for ${product.name}: ${product.quantity} - ${order.quantity} = ${product.quantity - order.quantity}`);
+                product.quantity -= order.quantity;
+                await product.save();
+                console.log(`Inventory updated: ${product.name} now has ${product.quantity} items`);
+            } else {
+                console.log('Product not found for order:', order._id);
+            }
+        }
+        
         // If status is changed to 'auto-selling', initialize the auto-sell tracking
         if (status === 'auto-selling') {
             order.itemsSold = 0;
@@ -167,8 +182,16 @@ router.put('/orders/:id', [auth, admin], async (req, res) => {
         
         await order.save();
 
+        // Send notification to user when order is approved
+        if (status === 'approved') {
+            await Notification.create({
+                user: order.user,
+                type: 'order_approved',
+                message: `🎉 Your order for ${order.productName} (Qty: ${order.quantity}) has been approved!`
+            });
+        }
+
         // Return the updated order with user details populated so the UI updates instantly
-        // FIX: Changed 'phoneNumber' to 'phone' here as well
         await order.populate('user', 'name email phone');
         
         res.json(order);

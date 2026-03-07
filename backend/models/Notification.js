@@ -8,7 +8,7 @@ const NotificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['referral', 'autosell_complete'],
+    enum: ['referral', 'autosell_complete', 'plan_subscribed', 'product_autosold', 'order_approved'],
     required: true
   },
   message: {

@@ -71,6 +71,12 @@ const OrderSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // User tier at the time of order (for tracking purposes)
+  userTier: {
+    type: Number,
+    enum: [1, 2, 3],
+    default: 1
+  },
   createdAt: {
     type: Date,
     default: Date.now

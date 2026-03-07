@@ -10,9 +10,19 @@ const User = require('../models/User');
 // @access  Private
 router.get('/', auth, async (req, res) => {
   try {
-    // Get the logged in user's subscription tier
-    const user = await User.findById(req.user.id).select('subscriptionTier store');
-    const subscriptionTier = user ? user.subscriptionTier || 1 : 1;
+    // Get the logged in user's subscription tier based on their plan
+    const user = await User.findById(req.user.id).select('currentPlan store');
+    let subscriptionTier = 1; // Default to tier 1 (Starter)
+
+    if (user && user.currentPlan) {
+      // Map plans to tiers
+      const planToTier = {
+        'Starter': 1,
+        'Growth': 2, 
+        'Premium': 3
+      };
+      subscriptionTier = planToTier[user.currentPlan] || 1;
+    }
 
     // Build base filter: products available to user's subscription tier
     const baseFilter = { tier: { $lte: subscriptionTier } };

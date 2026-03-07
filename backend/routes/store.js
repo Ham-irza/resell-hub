@@ -3,6 +3,7 @@ const router = express.Router();
 const auth = require('../middleware/authMiddleware');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const User = require('../models/User');
 
 // @route   POST api/store/buy
 // @desc    Buy a product (Deduct stock, create order, start auto-sell)
@@ -18,19 +19,31 @@ router.post('/buy', auth, async (req, res) => {
             return res.status(404).json({ msg: "Product not found" });
         }
 
-        // 2. Check Stock
+        // 2. Check if user has sufficient tier to purchase this product
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ msg: "User not found" });
+        }
+
+        if (user.tier < product.tier) {
+            return res.status(400).json({ 
+                msg: `You need to be at least tier ${product.tier} to purchase this product. Your current tier is ${user.tier}.` 
+            });
+        }
+
+        // 3. Check Stock
         if (product.quantity < quantity) {
             return res.status(400).json({ msg: "Not enough stock available" });
         }
 
-        // 3. Calculate Total and Expected Profit
+        // 4. Calculate Total and Expected Profit
         const totalAmount = product.price * quantity;
         
         // Calculate expected profit based on ROI
         const roi = product.roi || 0;
         const expectedProfit = (totalAmount * roi) / 100;
 
-        // 4. Create Order Record - Status will be 'approved' and then admin can start auto-sell
+        // 5. Create Order Record - Status will be 'approved' and then admin can start auto-sell
         const newOrder = new Order({
             user: req.user.id,
             product: product._id,
@@ -45,12 +58,13 @@ router.post('/buy', auth, async (req, res) => {
             expectedProfit: expectedProfit,
             pricePerItem: product.price,
             roi: roi,
+            userTier: user.tier, // Store user tier at time of purchase
             lastProcessedDate: new Date()
         });
 
         await newOrder.save();
 
-        // 5. Deduct Stock from Product
+        // 6. Deduct Stock from Product
         product.quantity = product.quantity - quantity;
         await product.save();
 

@@ -44,14 +44,15 @@ app.use('/api/products', require('./routes/products'));
 app.use('/api/store', require('./routes/store'));
 app.use('/api/stores', require('./routes/stores'));
 app.use('/api/payment', require('./routes/payment'));
+app.use('/api/plans', require('./routes/plans'));
 
 // --- SERVE FRONTEND (FIXED PATH & ROUTE) ---
 
 // 1. Serve static files from "dist/spa"
 app.use(express.static(path.join(__dirname, '../dist/spa')));
 
-// 2. Handle Frontend Routing (Express 5 Safe Catch-All regex)
-app.get(/(.*)/, (req, res) => {
+// 2. Handle Frontend Routing - ONLY for non-API routes
+app.get(/^(?!\/api\/).*/, (req, res) => {
     res.sendFile(path.join(__dirname, '../dist/spa/index.html'));
 });
 

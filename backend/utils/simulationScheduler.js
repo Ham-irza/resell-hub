@@ -6,6 +6,15 @@ const Notification = require('../models/Notification');
 const Product = require('../models/Product');
 const { sendPayoutEmail } = require('../utils/emailService');
 
+// Helper function to create product auto-sold notifications
+async function createProductAutoSoldNotification(user, productName, itemsSold, profit) {
+  await Notification.create({
+    user: user._id,
+    type: 'product_autosold',
+    message: `📦 ${itemsSold} items of "${productName}" were auto-sold today! Profit of PKR ${Math.round(profit).toLocaleString()} has been added to your wallet.`
+  });
+}
+
 const startSimulation = () => {
   // Schedule task to run once daily at midnight
   // 30-day cycle: sell ~1/30th of items each day
@@ -151,7 +160,8 @@ const startSimulation = () => {
               description: `Daily profit: ${itemsToSellToday} items of ${order.productName}`
             });
             
-            // Daily progress notifications disabled - only notify on completion
+            // Create notification for product auto-sold
+            await createProductAutoSoldNotification(user, order.productName, itemsToSellToday, profitGainedToday);
 
             console.log(`📈 UPDATE: Order ${order._id} - ${itemsToSellToday} items sold, ${order.itemsSold}/${order.totalQuantity} total, Profit: PKR ${Math.round(profitGainedToday)}`);
           }

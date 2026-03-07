@@ -6,8 +6,15 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   phone: { type: String, required: true },
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
-  // Subscription tier: 1 = first tier, 2 = second tier, 3 = third tier
-  subscriptionTier: { type: Number, enum: [1, 2, 3], default: 1 },
+  
+  // Subscription System
+  currentPlan: { type: String, default: null }, // Plan name (Starter, Growth, Premium)
+  planActivatedAt: { type: Date, default: null },
+  planExpiresAt: { type: Date, default: null },
+  hasCompletedFirstPurchase: { type: Boolean, default: false }, // Track if user has bought a plan
+  subscriptionStatus: { type: String, enum: ['inactive', 'active', 'expired'], default: 'inactive' },
+  // User tier (1 = first tier, 2 = second, 3 = third)
+  tier: { type: Number, enum: [1, 2, 3], default: 1 },
   
   // The Wallet
   walletBalance: { type: Number, default: 0 }, // Available to withdraw

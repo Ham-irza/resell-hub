@@ -136,13 +136,41 @@ router.get('/user', auth, async (req, res) => {
     
     // Log user balance for debugging
     console.log(`[BALANCE LOG] User ${user._id} loaded. Current wallet balance: PKR ${user.walletBalance}`);
+    console.log(`[PLAN LOG] User plan status:`, {
+      currentPlan: user.currentPlan,
+      subscriptionStatus: user.subscriptionStatus,
+      hasCompletedFirstPurchase: user.hasCompletedFirstPurchase,
+      planActivatedAt: user.planActivatedAt,
+      planExpiresAt: user.planExpiresAt
+    });
     
-    // Include balance calculation info in response
+    // Check if user needs to purchase a plan (first login after signup)
+    const needsPlanPurchase = !user.hasCompletedFirstPurchase && !user.currentPlan;
+    const hasActivePlan = !!user.currentPlan && user.subscriptionStatus === 'active';
+    
+    // Check if plan has expired
+    let finalSubscriptionStatus = user.subscriptionStatus;
+    if (user.planExpiresAt && new Date() > user.planExpiresAt && user.subscriptionStatus === 'active') {
+      finalSubscriptionStatus = 'expired';
+      console.log(`[PLAN LOG] Plan expired, updating status to: ${finalSubscriptionStatus}`);
+    }
+    
+    // Include balance calculation info and plan status in response
     res.json({
       ...user.toObject(),
       _balanceInfo: {
         walletBalance: user.walletBalance,
         lastUpdated: new Date().toISOString()
+      },
+      _planStatus: {
+        needsPlanPurchase,
+        hasActivePlan: finalSubscriptionStatus === 'active',
+        currentPlan: user.currentPlan,
+        planActivatedAt: user.planActivatedAt,
+        planExpiresAt: user.planExpiresAt,
+        hasCompletedFirstPurchase: user.hasCompletedFirstPurchase,
+        subscriptionStatus: finalSubscriptionStatus,
+        canUpgrade: finalSubscriptionStatus === 'active' || finalSubscriptionStatus === 'expired'
       }
     });
   } catch (err) {
