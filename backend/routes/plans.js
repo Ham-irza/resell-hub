@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const auth = require('../middleware/authMiddleware');
 const User = require('../models/User');
@@ -72,13 +73,8 @@ router.get('/user', auth, async (req, res) => {
         let planActivatedAt = null;
         let planExpiresAt = null;
 
-        if (activeInvestment) {
-            currentPlan = activeInvestment.plan.name;
-            planStatus = 'active';
-            planActivatedAt = activeInvestment.startDate;
-            planExpiresAt = new Date(activeInvestment.startDate);
-            planExpiresAt.setDate(planExpiresAt.getDate() + 30); // 30 days duration
-        } else if (user.currentPlan) {
+        // Priority 1: Check user data first (most reliable)
+        if (user.currentPlan) {
             // Check if plan expired
             if (user.planExpiresAt && new Date() > user.planExpiresAt) {
                 planStatus = 'expired';
@@ -88,7 +84,17 @@ router.get('/user', auth, async (req, res) => {
                 planActivatedAt = user.planActivatedAt;
                 planExpiresAt = user.planExpiresAt;
             }
-        } else {
+        } 
+        // Priority 2: Fallback to active investment if user data is missing
+        else if (activeInvestment) {
+            currentPlan = activeInvestment.plan.name;
+            planStatus = 'active';
+            planActivatedAt = activeInvestment.startDate;
+            planExpiresAt = new Date(activeInvestment.startDate);
+            planExpiresAt.setDate(planExpiresAt.getDate() + 30); // 30 days duration
+        }
+        // Priority 3: Fallback for edge cases
+        else {
             // Fallback: check if user has plan fields set but no investment
             if (user.currentPlan && user.subscriptionStatus === 'active') {
                 currentPlan = user.currentPlan;
@@ -136,108 +142,60 @@ router.post('/purchase', auth, async (req, res) => {
 
         console.log('User found:', { name: user.name, walletBalance: user.walletBalance });
 
-        // Check for existing active plan
-        const existingInvestment = await Investment.findOne({ 
-            user: req.user.id, 
-            status: 'active' 
-        });
+        // Use a transaction to ensure all database operations are atomic
+        const session = await mongoose.startSession();
+        session.startTransaction();
 
-        if (existingInvestment) {
-            console.log('User already has active plan:', existingInvestment.plan.name);
-            return res.status(400).json({ error: 'You already have an active plan' });
-        }
+        try {
+            // Check for existing active plan
+            const existingInvestment = await Investment.findOne({ 
+                user: req.user.id, 
+                status: 'active' 
+            }).session(session);
 
-        if (paymentMethod === 'wallet') {
-            // Check wallet balance
-            if (user.walletBalance < selectedPlan.price) {
-                console.log('Insufficient wallet balance:', { 
-                    required: selectedPlan.price, 
-                    available: user.walletBalance 
-                });
-                return res.status(400).json({ error: 'Insufficient wallet balance' });
-            }
-
-            console.log('Processing wallet payment...');
-
-            // Deduct from wallet
-            user.walletBalance -= selectedPlan.price;
-            await user.save();
-
-            // Create investment
-            const newInvestment = await createInvestment(user._id, selectedPlan);
-            
-            // Record transaction
-            await Transaction.create({
-                user: user._id,
-                type: 'plan_purchase',
-                amount: selectedPlan.price,
-                status: 'approved',
-                description: `Purchased ${planName} plan`
-            });
-
-            // Update user subscription status
-            user.currentPlan = planName;
-            user.planActivatedAt = new Date();
-            user.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-            user.hasCompletedFirstPurchase = true;
-            user.subscriptionStatus = 'active';
-            await user.save();
-
-            // Create notification for plan subscription
-            await Notification.create({
-                user: user._id,
-                type: 'plan_subscribed',
-                message: `Congratulations! You have successfully subscribed to the ${planName} plan. Your plan will expire on ${user.planExpiresAt.toLocaleDateString()}.`
-            });
-
-            console.log('Wallet payment successful:', { planName, newBalance: user.walletBalance });
-
-            res.json({
-                success: true,
-                message: `${planName} plan activated successfully!`,
-                plan: {
-                    name: planName,
-                    activatedAt: user.planActivatedAt,
-                    expiresAt: user.planExpiresAt
+            if (existingInvestment) {
+                // Allow plan change if it's different from current plan
+                if (existingInvestment.plan.name === planName) {
+                    console.log('User already has this plan:', existingInvestment.plan.name);
+                    await session.abortTransaction();
+                    session.endSession();
+                    return res.status(400).json({ error: 'You already have this plan' });
                 }
-            });
-
-        } else {
-            console.log('Processing payment gateway payment...');
-            
-            // Payment gateway method
-            const paymentResult = await processPayment({
-                orderId: `plan-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                amount: selectedPlan.price,
-                description: `Purchase ${planName} Plan`,
-                returnUrl: `${process.env.VITE_APP_URL}/payment-return?plan=${planName}`
-            });
-
-            console.log('Payment gateway result:', paymentResult);
-
-            if (!paymentResult.success) {
-                console.log('Payment gateway failed:', paymentResult.error);
-                return res.status(400).json({ 
-                    error: 'Payment initiation failed',
-                    details: paymentResult.error 
-                });
+                console.log('User has different active plan, cancelling old investment:', existingInvestment.plan.name);
+                // Cancel the existing investment
+                existingInvestment.status = 'cancelled';
+                await existingInvestment.save({ session });
             }
 
-            // For mock mode, immediately complete the plan purchase
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('Mock mode detected, completing plan purchase immediately...');
-                
+            if (paymentMethod === 'wallet') {
+                // Check wallet balance
+                if (user.walletBalance < selectedPlan.price) {
+                    console.log('Insufficient wallet balance:', { 
+                        required: selectedPlan.price, 
+                        available: user.walletBalance 
+                    });
+                    await session.abortTransaction();
+                    session.endSession();
+                    return res.status(400).json({ error: 'Insufficient wallet balance' });
+                }
+
+                console.log('Processing wallet payment...');
+
+                // Deduct from wallet
+                user.walletBalance -= selectedPlan.price;
+                await user.save({ session });
+
                 // Create investment
-                const newInvestment = await createInvestment(user._id, selectedPlan);
+                const newInvestment = await createInvestment(user._id, selectedPlan, session);
                 
                 // Record transaction
-                await Transaction.create({
+                await Transaction.create([{
                     user: user._id,
                     type: 'plan_purchase',
                     amount: selectedPlan.price,
                     status: 'approved',
-                    description: `Purchased ${planName} plan via mock payment`
-                });
+                    description: `Purchased ${planName} plan`
+                }], { session });
 
                 // Update user subscription status
                 user.currentPlan = planName;
@@ -245,16 +203,19 @@ router.post('/purchase', auth, async (req, res) => {
                 user.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
                 user.hasCompletedFirstPurchase = true;
                 user.subscriptionStatus = 'active';
-                await user.save();
+                await user.save({ session });
 
                 // Create notification for plan subscription
-                await Notification.create({
+                await Notification.create([{
                     user: user._id,
                     type: 'plan_subscribed',
                     message: `Congratulations! You have successfully subscribed to the ${planName} plan. Your plan will expire on ${user.planExpiresAt.toLocaleDateString()}.`
-                });
+                }], { session });
 
-                console.log('Mock payment successful:', { planName, newBalance: user.walletBalance });
+                await session.commitTransaction();
+                session.endSession();
+
+                console.log('Wallet payment successful:', { planName, newBalance: user.walletBalance });
 
                 res.json({
                     success: true,
@@ -265,27 +226,104 @@ router.post('/purchase', auth, async (req, res) => {
                         expiresAt: user.planExpiresAt
                     }
                 });
+
             } else {
-                // Store pending plan purchase info for live mode
-                user.pendingPlanPurchase = {
-                    planName,
-                    transactionId: paymentResult.transactionId,
+                console.log('Processing payment gateway payment...');
+                
+                // Payment gateway method
+                const paymentResult = await processPayment({
+                    orderId: `plan-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     amount: selectedPlan.price,
-                    initiatedAt: new Date()
-                };
-                await user.save();
-
-                console.log('Payment gateway initiated successfully:', { 
-                    transactionId: paymentResult.transactionId,
-                    checkoutUrl: paymentResult.checkoutUrl 
+                    description: `Purchase ${planName} Plan`,
+                    returnUrl: `${process.env.VITE_APP_URL}/payment-return?plan=${planName}`
                 });
 
-                res.json({
-                    success: true,
-                    message: 'Payment initiated successfully',
-                    ...paymentResult
-                });
+                console.log('Payment gateway result:', paymentResult);
+
+                if (!paymentResult.success) {
+                    console.log('Payment gateway failed:', paymentResult.error);
+                    await session.abortTransaction();
+                    session.endSession();
+                    return res.status(400).json({ 
+                        error: 'Payment initiation failed',
+                        details: paymentResult.error 
+                    });
+                }
+
+                // For mock mode, immediately complete the plan purchase
+                if (process.env.PAYMENT_MODE === 'TEST' || process.env.NODE_ENV !== 'production') {
+                    console.log('Mock mode detected, completing plan purchase immediately...');
+                    
+                    // Create investment
+                    const newInvestment = await createInvestment(user._id, selectedPlan, session);
+                    
+                    // Record transaction
+                    await Transaction.create([{
+                        user: user._id,
+                        type: 'plan_purchase',
+                        amount: selectedPlan.price,
+                        status: 'approved',
+                        description: `Purchased ${planName} plan via mock payment`
+                    }], { session });
+
+                    // Update user subscription status
+                    user.currentPlan = planName;
+                    user.planActivatedAt = new Date();
+                    user.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+                    user.hasCompletedFirstPurchase = true;
+                    user.subscriptionStatus = 'active';
+                    await user.save({ session });
+
+                    // Create notification for plan subscription
+                    await Notification.create([{
+                        user: user._id,
+                        type: 'plan_subscribed',
+                        message: `Congratulations! You have successfully subscribed to the ${planName} plan. Your plan will expire on ${user.planExpiresAt.toLocaleDateString()}.`
+                    }], { session });
+
+                    await session.commitTransaction();
+                    session.endSession();
+
+                    console.log('Mock payment successful:', { planName, newBalance: user.walletBalance });
+
+                    res.json({
+                        success: true,
+                        message: `${planName} plan activated successfully!`,
+                        plan: {
+                            name: planName,
+                            activatedAt: user.planActivatedAt,
+                            expiresAt: user.planExpiresAt
+                        }
+                    });
+                } else {
+                    // Store pending plan purchase info for live mode
+                    user.pendingPlanPurchase = {
+                        planName,
+                        transactionId: paymentResult.transactionId,
+                        amount: selectedPlan.price,
+                        initiatedAt: new Date()
+                    };
+                    await user.save({ session });
+
+                    await session.commitTransaction();
+                    session.endSession();
+
+                    console.log('Payment gateway initiated successfully:', { 
+                        transactionId: paymentResult.transactionId,
+                        checkoutUrl: paymentResult.checkoutUrl 
+                    });
+
+                    res.json({
+                        success: true,
+                        message: 'Payment initiated successfully',
+                        ...paymentResult
+                    });
+                }
             }
+        } catch (err) {
+            await session.abortTransaction();
+            session.endSession();
+            throw err;
         }
     } catch (err) {
         console.error('Plan purchase error:', err);
@@ -404,38 +442,51 @@ router.post('/callback', async (req, res) => {
         const selectedPlan = PLANS[pendingPurchase.planName];
 
         if (responseData.Status === 'SUCCESS' || responseData.Status === 'APPROVED') {
-            // Create investment
-            const newInvestment = await createInvestment(user._id, selectedPlan);
-            
-            // Record transaction
-            await Transaction.create({
-                user: user._id,
-                type: 'plan_purchase',
-                amount: pendingPurchase.amount,
-                status: 'approved',
-                description: `Purchased ${pendingPurchase.planName} plan`
-            });
+            // Use a transaction to ensure all database operations are atomic
+            const session = await mongoose.startSession();
+            session.startTransaction();
 
-            // Update user subscription status
-            user.currentPlan = pendingPurchase.planName;
-            user.planActivatedAt = new Date();
-            user.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-            user.hasCompletedFirstPurchase = true;
-            user.subscriptionStatus = 'active';
-            user.pendingPlanPurchase = undefined;
-            await user.save();
+            try {
+                // Create investment
+                const newInvestment = await createInvestment(user._id, selectedPlan, session);
+                
+                // Record transaction
+                await Transaction.create([{
+                    user: user._id,
+                    type: 'plan_purchase',
+                    amount: pendingPurchase.amount,
+                    status: 'approved',
+                    description: `Purchased ${pendingPurchase.planName} plan`
+                }], { session });
 
-            // Create notification for plan subscription
-            await Notification.create({
-                user: user._id,
-                type: 'plan_subscribed',
-                message: `Congratulations! Your payment for the ${pendingPurchase.planName} plan has been successful. Your plan is now active and will expire on ${user.planExpiresAt.toLocaleDateString()}.`
-            });
+                // Update user subscription status
+                user.currentPlan = pendingPurchase.planName;
+                user.planActivatedAt = new Date();
+                user.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                user.hasCompletedFirstPurchase = true;
+                user.subscriptionStatus = 'active';
+                user.pendingPlanPurchase = undefined;
+                await user.save({ session });
 
-            res.json({
-                success: true,
-                message: 'Plan purchase completed successfully'
-            });
+                // Create notification for plan subscription
+                await Notification.create([{
+                    user: user._id,
+                    type: 'plan_subscribed',
+                    message: `Congratulations! Your payment for the ${pendingPurchase.planName} plan has been successful. Your plan is now active and will expire on ${user.planExpiresAt.toLocaleDateString()}.`
+                }], { session });
+
+                await session.commitTransaction();
+                session.endSession();
+
+                res.json({
+                    success: true,
+                    message: 'Plan purchase completed successfully'
+                });
+            } catch (err) {
+                await session.abortTransaction();
+                session.endSession();
+                throw err;
+            }
         } else {
             // Payment failed, clean up
             user.pendingPlanPurchase = undefined;
@@ -453,7 +504,7 @@ router.post('/callback', async (req, res) => {
 });
 
 // Helper function to create investment
-async function createInvestment(userId, plan) {
+async function createInvestment(userId, plan, session = null) {
     const newInvestment = new Investment({
         user: userId,
         status: 'active',
@@ -473,7 +524,11 @@ async function createInvestment(userId, plan) {
         accumulatedReturn: 0
     });
 
-    await newInvestment.save();
+    if (session) {
+        await newInvestment.save({ session });
+    } else {
+        await newInvestment.save();
+    }
     return newInvestment;
 }
 

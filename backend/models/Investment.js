@@ -26,7 +26,7 @@ const InvestmentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'completed'],
+    enum: ['active', 'completed', 'cancelled'],
     default: 'active'
   },
   // --- NEW FIELD ---

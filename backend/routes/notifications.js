@@ -8,12 +8,16 @@ const Notification = require('../models/Notification');
 // @access  Private
 router.get('/', auth, async (req, res) => {
   try {
+    console.log(`[NOTIFICATION FETCH DEBUG] Fetching notifications for user ${req.user.id}`);
     const notifications = await Notification.find({ 
       user: req.user.id
     })
       .sort({ createdAt: -1 }) // Newest first
       .limit(50);
       
+    console.log(`[NOTIFICATION FETCH DEBUG] Found ${notifications.length} notifications for user ${req.user.id}`);
+    console.log(`[NOTIFICATION FETCH DEBUG] Notifications:`, notifications.map(n => ({ id: n._id, message: n.message, type: n.type, isRead: n.isRead })));
+    
     res.json(notifications);
   } catch (err) {
     console.error(err.message);

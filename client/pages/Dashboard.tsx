@@ -11,6 +11,7 @@ import logo from "../src/assets/egrocifylogo.png";
 import { PlanSelectionModal } from "@/components/PlanSelectionModal";
 import { PlanManagement } from "@/components/PlanManagement";
 import { usePlans } from "@/hooks/usePlans";
+import type { UserSubscription } from '@shared/api';
 
 // --- CONFIGURATION ---
 const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
@@ -130,9 +131,9 @@ const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
         setStep(2);
         try {
             const token = localStorage.getItem('token');
-            const safeProductName = product.name ? product.name.replace(/[^a-zA-Z0-9 ]/g, '') : 'Item';
             
-            const paymentRes = await fetch('/api/payment/initiate', {
+            // First, place the order via the store API
+            const orderRes = await fetch('/api/store/buy', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -140,45 +141,29 @@ const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
                 },
                 body: JSON.stringify({ 
                     productId: product._id, 
-                    quantity: quantity,
-                    amount: total,
-                    description: `Purchase ${safeProductName} x${quantity}` 
+                    quantity: quantity
                 })
             });
 
-            const paymentData = await paymentRes.json();
+            const orderData = await orderRes.json();
 
-            if(!paymentRes.ok) {
-                throw new Error(paymentData.msg || paymentData.error || "Payment initiation failed");
+            if(!orderRes.ok) {
+                throw new Error(orderData.msg || orderData.error || "Order placement failed");
             }
 
-            // --- THE FINAL REDIRECT LOGIC ---
-            if (paymentData.type === 'AUTH_TOKEN_REDIRECT' && paymentData.authToken) {
-                setIsRedirecting(true);
-                
-                // Mock success for testing - skip actual bank redirect
-                console.log("Mock payment successful, skipping bank redirect");
-                setStep(3);
-                setTimeout(() => {
-                    onSuccess();
-                    setStep(1);
-                    setQuantity(1);
-                }, 2000);
-                return;
-            }
-
-            if (paymentData.success) {
-                setStep(3);
-                setTimeout(() => {
-                    onSuccess();
-                    setStep(1);
-                    setQuantity(1);
-                }, 2000);
-            }
+            console.log("Order placed successfully:", orderData);
+            
+            // Mock success for testing - simulate order placement
+            setStep(3);
+            setTimeout(() => {
+                onSuccess();
+                setStep(1);
+                setQuantity(1);
+            }, 2000);
 
         } catch (err: any) {
-            console.error("Payment Error:", err);
-            alert(err.message || "Payment Failed");
+            console.error("Order Error:", err);
+            alert(err.message || "Order Failed");
             onClose();
             setStep(1);
         }
@@ -278,7 +263,7 @@ const ProductPurchaseModal = ({ product, isOpen, onClose, onSuccess }: any) => {
 };
 
 // 3. Main Dashboard Component
-const UserDashboardContent = ({ user, onLogout, showPlanPrompt, onPlanPromptClose }: any) => {
+const UserDashboardContent = ({ user, onLogout, showPlanPrompt, onPlanPromptClose, userPlan, refetch }: any) => {
   // Always log when dashboard renders
   console.log('%c🏦 DASHBOARD LOADED - BALANCE LOGS ACTIVE 🏦', 'background: #10b981; color: white; font-size: 16px; padding: 8px; border-radius: 4px;');
   console.log('Current wallet balance:', user?.walletBalance);
@@ -654,10 +639,10 @@ const UserDashboardContent = ({ user, onLogout, showPlanPrompt, onPlanPromptClos
 
                     {/* Plan Management */}
                     <PlanManagement 
-                        userPlan={user._planStatus}
+                        userPlan={userPlan}
                         onPlanUpdated={() => {
                             // Refresh user data after plan update
-                            refreshUserData();
+                            refetch();
                         }}
                     />
 
@@ -1047,6 +1032,9 @@ export default function UserDashboard() {
   const [user, setUser] = useState<any>(null);
   const [showPlanPrompt, setShowPlanPrompt] = useState(false);
   const [, setLocation] = useLocation();
+  
+  // Use the same plan data source as PlanManagement
+  const { userPlan, refetch } = usePlans();
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -1117,6 +1105,8 @@ export default function UserDashboard() {
         onLogout={handleLogout} 
         showPlanPrompt={showPlanPrompt}
         onPlanPromptClose={() => setShowPlanPrompt(false)}
+        userPlan={userPlan}
+        refetch={refetch}
       />
       
       {/* First Login Plan Prompt */}
@@ -1129,6 +1119,7 @@ export default function UserDashboard() {
           loadData();
         }}
         isForcedSelection={true}
+        currentActivePlan={user?._planStatus?.currentPlan}
       />
     </>
   );

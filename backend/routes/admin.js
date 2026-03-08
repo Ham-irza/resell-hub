@@ -186,8 +186,9 @@ router.put('/orders/:id', [auth, admin], async (req, res) => {
         if (status === 'approved') {
             await Notification.create({
                 user: order.user,
-                type: 'order_approved',
-                message: `🎉 Your order for ${order.productName} (Qty: ${order.quantity}) has been approved!`
+                type: 'product_autosold',
+                message: `🎉 Your order for ${order.productName} (Qty: ${order.quantity}) has been approved!`,
+                isRead: false
             });
         }
 

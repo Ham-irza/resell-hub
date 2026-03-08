@@ -211,6 +211,7 @@ export function PlanManagement({ userPlan, onPlanUpdated }: PlanManagementProps)
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
         onPlanPurchased={onPlanUpdated}
+        currentActivePlan={userPlan?.currentPlan}
       />
     </div>
   );

@@ -4,6 +4,7 @@ const auth = require('../middleware/authMiddleware');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 
 // @route   POST api/store/buy
 // @desc    Buy a product (Deduct stock, create order, start auto-sell)
@@ -43,7 +44,7 @@ router.post('/buy', auth, async (req, res) => {
         const roi = product.roi || 0;
         const expectedProfit = (totalAmount * roi) / 100;
 
-        // 5. Create Order Record - Status will be 'approved' and then admin can start auto-sell
+        // 5. Create Order Record - Status will be 'pending' and then admin can approve and start auto-sell
         const newOrder = new Order({
             user: req.user.id,
             product: product._id,
@@ -51,8 +52,8 @@ router.post('/buy', auth, async (req, res) => {
             productImage: product.image,
             quantity: Number(quantity),
             totalAmount: totalAmount,
-            status: 'approved', // Order approved, waiting for admin to start auto-sell
-            // Auto-sell tracking fields (will be activated when admin starts auto-sell)
+            status: 'pending', // Order pending admin approval
+            // Auto-sell tracking fields (will be activated when admin approves and starts auto-sell)
             itemsSold: 0,
             totalQuantity: Number(quantity),
             expectedProfit: expectedProfit,
@@ -68,8 +69,28 @@ router.post('/buy', auth, async (req, res) => {
         product.quantity = product.quantity - quantity;
         await product.save();
 
+        // 7. Create notification for the user
+        console.log(`[NOTIFICATION DEBUG] Creating notification for user ${req.user.id} for order of ${quantity} ${product.name}`);
+        console.log(`[NOTIFICATION DEBUG] Notification data:`, {
+            user: req.user.id,
+            message: `Your order of ${quantity} ${product.name}${quantity > 1 ? 's' : ''} has been placed and is pending admin approval.`,
+            type: 'product_autosold',
+            isRead: false
+        });
+        
+        const notification = new Notification({
+            user: req.user.id,
+            message: `Your order of ${quantity} ${product.name}${quantity > 1 ? 's' : ''} has been placed and is pending admin approval.`,
+            type: 'product_autosold',
+            isRead: false
+        });
+
+        await notification.save();
+        console.log(`[NOTIFICATION DEBUG] Notification created successfully with ID: ${notification._id}`);
+        console.log(`[NOTIFICATION DEBUG] Full notification object:`, notification);
+
         res.json({ 
-            msg: "Order placed successfully! Your order is approved and will start auto-selling once the admin activates it.", 
+            msg: "Order placed successfully! Your order is pending admin approval and will start auto-selling once approved.", 
             order: newOrder 
         });
 

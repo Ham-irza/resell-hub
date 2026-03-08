@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Wallet, 
@@ -9,9 +9,11 @@ import {
   Loader2,
   TrendingUp,
   Package,
-  Users
+  Users,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import { usePlans } from '@/hooks/usePlans';
 import type { Plan } from '@shared/api';
 
@@ -20,15 +22,18 @@ interface PlanSelectionModalProps {
   onClose: () => void;
   onPlanPurchased: () => void;
   isForcedSelection?: boolean; // If true, user must select a plan
+  currentActivePlan?: string; // Current active plan from Dashboard
 }
 
 export function PlanSelectionModal({ 
   isOpen, 
   onClose, 
   onPlanPurchased, 
-  isForcedSelection = false 
+  isForcedSelection = false,
+  currentActivePlan
 }: PlanSelectionModalProps) {
-  const { plans, purchasePlan, loading } = usePlans();
+  const { plans, purchasePlan, loading, userPlan } = usePlans();
+  const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'payment_gateway'>('payment_gateway');
   const [isPurchasing, setIsPurchasing] = useState(false);
@@ -38,19 +43,52 @@ export function PlanSelectionModal({
   const handlePurchase = async () => {
     if (!selectedPlan) return;
 
+    // Check if user already has this plan using the currentActivePlan prop from Dashboard
+    // Only show this message if currentActivePlan is not null/undefined
+    if (currentActivePlan && currentActivePlan === selectedPlan.name) {
+      toast({
+        title: "Plan Selection",
+        description: `You are already on ${selectedPlan.name} plan`,
+        variant: "default"
+      });
+      return;
+    }
+
     try {
       setIsPurchasing(true);
+      
+      // Always use purchasePlan for plan changes to avoid backend upgrade restrictions
+      // The backend upgrade endpoint only allows upgrading to higher-priced plans
       const result = await purchasePlan(selectedPlan.name, paymentMethod);
       
       if (result.success) {
+        toast({
+          title: "Plan Updated Successfully",
+          description: `Your plan has been changed to ${selectedPlan.name}`,
+          variant: "default"
+        });
         onPlanPurchased();
         onClose();
+        
+        // Reload the page to show changes on frontend
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
       } else {
-        alert(result.error || 'Failed to purchase plan');
+        // Show toast notification instead of alert for better UX
+        toast({
+          title: "Plan Selection Error",
+          description: result.error || "Failed to purchase plan",
+          variant: "destructive"
+        });
       }
     } catch (err) {
       console.error('Plan purchase error:', err);
-      alert(err instanceof Error ? err.message : 'Failed to purchase plan');
+      toast({
+        title: "Plan Selection Error",
+        description: err instanceof Error ? err.message : "Failed to purchase plan",
+        variant: "destructive"
+      });
     } finally {
       setIsPurchasing(false);
     }
