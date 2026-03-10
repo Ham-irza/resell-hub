@@ -38,6 +38,7 @@ app.use(async (req, res, next) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/investments', require('./routes/investments'));
 app.use('/api/wallet', require('./routes/wallet'));
+app.use('/api/admin/plans', require('./routes/admin-plans'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/products', require('./routes/products'));

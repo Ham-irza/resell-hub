@@ -6,46 +6,41 @@ const User = require('../models/User');
 const Investment = require('../models/Investment');
 const Transaction = require('../models/Transaction');
 const Notification = require('../models/Notification');
+const Plan = require('../models/Plan');
+const SystemConfig = require('../models/SystemConfig'); // <-- Required for dynamic referrals
 const { processPayment } = require('../utils/paymentGateway');
+const { PLANS } = require('../config/plans');
 
-// Plan configurations
-const PLANS = {
-    "Starter": { 
-        name: "Starter", 
-        price: 50000, 
-        returnPercentage: 4.0, 
-        totalItems: 100,       
-        dailyMinSales: 2,      
-        dailyMaxSales: 5,
-        durationDays: 30
-    },
-    "Growth": { 
-        name: "Growth", 
-        price: 100000, 
-        returnPercentage: 4.5, 
-        totalItems: 250,       
-        dailyMinSales: 5,
-        dailyMaxSales: 10,
-        durationDays: 30
-    },
-    "Premium": { 
-        name: "Premium", 
-        price: 200000, 
-        returnPercentage: 5.0, 
-        totalItems: 600,       
-        dailyMinSales: 15,
-        dailyMaxSales: 30,
-        durationDays: 30
+// @route   GET api/plans/referral-config
+// @desc    Get current referral payout amount for users
+// @access  Public
+router.get('/referral-config', async (req, res) => {
+    try {
+        let config = await SystemConfig.findOne();
+        res.json({ 
+            referralBonusCap: config ? config.referralBonusCap : 10000 
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
     }
-};
+});
 
 // @route   GET api/plans
-// @desc    Get all available plans
+// @desc    Get all available plans (Dynamic from DB with config fallback)
 // @access  Public
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
     try {
-        const plans = Object.values(PLANS);
-        res.json(plans);
+        // Try to get dynamic plans from database first
+        const plansFromDB = await Plan.find().sort({ price: 1 });
+        
+        if (plansFromDB.length > 0) {
+            return res.json(plansFromDB);
+        }
+
+        // Fallback to static config if DB is empty
+        const { PLANS } = require('../config/plans');
+        res.json(Object.values(PLANS));
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server Error');
@@ -95,7 +90,6 @@ router.get('/user', auth, async (req, res) => {
         }
         // Priority 3: Fallback for edge cases
         else {
-            // Fallback: check if user has plan fields set but no investment
             if (user.currentPlan && user.subscriptionStatus === 'active') {
                 currentPlan = user.currentPlan;
                 planStatus = 'active';
@@ -127,8 +121,13 @@ router.post('/purchase', auth, async (req, res) => {
 
         console.log('Plan purchase request:', { planName, paymentMethod, userId: req.user.id });
 
-        // Validate plan
-        const selectedPlan = PLANS[planName];
+        // Get live plan from DB or fallback to config
+        let selectedPlan = await Plan.findOne({ name: planName });
+        if (!selectedPlan) {
+            const { PLANS } = require('../config/plans');
+            selectedPlan = PLANS[planName];
+        }
+
         if (!selectedPlan) {
             console.log('Invalid plan selected:', planName);
             return res.status(400).json({ error: 'Invalid plan selected' });
@@ -142,30 +141,26 @@ router.post('/purchase', auth, async (req, res) => {
 
         console.log('User found:', { name: user.name, walletBalance: user.walletBalance });
 
-        // Use a transaction to ensure all database operations are atomic
         const session = await mongoose.startSession();
         session.startTransaction();
 
         try {
-            // Check for existing active plan
-            const existingInvestment = await Investment.findOne({ 
-                user: req.user.id, 
-                status: 'active' 
-            }).session(session);
-
-            if (existingInvestment) {
-                // Allow plan change if it's different from current plan
-                if (existingInvestment.plan.name === planName) {
-                    console.log('User already has this plan:', existingInvestment.plan.name);
-                    await session.abortTransaction();
-                    session.endSession();
-                    return res.status(400).json({ error: 'You already have this plan' });
-                }
-                console.log('User has different active plan, cancelling old investment:', existingInvestment.plan.name);
-                // Cancel the existing investment
-                existingInvestment.status = 'cancelled';
-                await existingInvestment.save({ session });
+            // 1. Single Source of Truth: Check User profile to see if they already have this exact plan active
+            if (user.currentPlan === planName && user.subscriptionStatus === 'active') {
+                console.log('User already has this plan:', planName);
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(400).json({ error: 'You already have this plan' });
             }
+
+            console.log(`User changing plan to ${planName}. Cancelling old investments...`);
+
+            // 2. Bulletproof Cleanup: Cancel ALL existing active investments to kill ghosts
+            await Investment.updateMany(
+                { user: req.user.id, status: 'active' },
+                { $set: { status: 'cancelled' } },
+                { session }
+            );
 
             if (paymentMethod === 'wallet') {
                 // Check wallet balance
@@ -200,12 +195,12 @@ router.post('/purchase', auth, async (req, res) => {
                 // Update user subscription status
                 user.currentPlan = planName;
                 user.planActivatedAt = new Date();
-                user.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+                user.planExpiresAt = new Date(Date.now() + (selectedPlan.durationDays || 30) * 24 * 60 * 60 * 1000); 
                 user.hasCompletedFirstPurchase = true;
                 user.subscriptionStatus = 'active';
                 await user.save({ session });
 
-                // Create notification for plan subscription
+                // Create notification
                 await Notification.create([{
                     user: user._id,
                     type: 'plan_subscribed',
@@ -230,7 +225,6 @@ router.post('/purchase', auth, async (req, res) => {
             } else {
                 console.log('Processing payment gateway payment...');
                 
-                // Payment gateway method
                 const paymentResult = await processPayment({
                     orderId: `plan-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     amount: selectedPlan.price,
@@ -250,14 +244,12 @@ router.post('/purchase', auth, async (req, res) => {
                     });
                 }
 
-                // For mock mode, immediately complete the plan purchase
+                // Mock mode auto-complete
                 if (process.env.PAYMENT_MODE === 'TEST' || process.env.NODE_ENV !== 'production') {
                     console.log('Mock mode detected, completing plan purchase immediately...');
                     
-                    // Create investment
                     const newInvestment = await createInvestment(user._id, selectedPlan, session);
                     
-                    // Record transaction
                     await Transaction.create([{
                         user: user._id,
                         type: 'plan_purchase',
@@ -266,15 +258,13 @@ router.post('/purchase', auth, async (req, res) => {
                         description: `Purchased ${planName} plan via mock payment`
                     }], { session });
 
-                    // Update user subscription status
                     user.currentPlan = planName;
                     user.planActivatedAt = new Date();
-                    user.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+                    user.planExpiresAt = new Date(Date.now() + (selectedPlan.durationDays || 30) * 24 * 60 * 60 * 1000);
                     user.hasCompletedFirstPurchase = true;
                     user.subscriptionStatus = 'active';
                     await user.save({ session });
 
-                    // Create notification for plan subscription
                     await Notification.create([{
                         user: user._id,
                         type: 'plan_subscribed',
@@ -283,8 +273,6 @@ router.post('/purchase', auth, async (req, res) => {
 
                     await session.commitTransaction();
                     session.endSession();
-
-                    console.log('Mock payment successful:', { planName, newBalance: user.walletBalance });
 
                     res.json({
                         success: true,
@@ -296,7 +284,7 @@ router.post('/purchase', auth, async (req, res) => {
                         }
                     });
                 } else {
-                    // Store pending plan purchase info for live mode
+                    // Live mode pending logic
                     user.pendingPlanPurchase = {
                         planName,
                         transactionId: paymentResult.transactionId,
@@ -307,11 +295,6 @@ router.post('/purchase', auth, async (req, res) => {
 
                     await session.commitTransaction();
                     session.endSession();
-
-                    console.log('Payment gateway initiated successfully:', { 
-                        transactionId: paymentResult.transactionId,
-                        checkoutUrl: paymentResult.checkoutUrl 
-                    });
 
                     res.json({
                         success: true,
@@ -337,31 +320,37 @@ router.post('/purchase', auth, async (req, res) => {
 router.post('/upgrade', auth, async (req, res) => {
     try {
         const { planName } = req.body;
-        const selectedPlan = PLANS[planName];
-
-        if (!selectedPlan) {
-            return res.status(400).json({ error: 'Invalid plan selected' });
-        }
-
         const user = await User.findById(req.user.id);
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        // Check current plan
-        const currentPlan = PLANS[user.currentPlan];
+        // Get requested plan from DB or config
+        let selectedPlan = await Plan.findOne({ name: planName });
+        if (!selectedPlan) {
+            const { PLANS } = require('../config/plans');
+            selectedPlan = PLANS[planName];
+        }
+
+        if (!selectedPlan) return res.status(400).json({ error: 'Invalid plan selected' });
+
+        // Get current plan from DB or config
+        let currentPlan = await Plan.findOne({ name: user.currentPlan });
+        if (!currentPlan) {
+            const { PLANS } = require('../config/plans');
+            currentPlan = PLANS[user.currentPlan];
+        }
+
         if (!currentPlan) {
             return res.status(400).json({ error: 'No active plan found to upgrade' });
         }
 
-        // Check if trying to downgrade
         if (selectedPlan.price <= currentPlan.price) {
             return res.status(400).json({ error: 'You can only upgrade to a higher plan' });
         }
 
         const upgradeCost = selectedPlan.price - currentPlan.price;
 
-        // Check wallet balance for upgrade
         if (user.walletBalance < upgradeCost) {
             return res.status(400).json({ error: 'Insufficient wallet balance for upgrade' });
         }
@@ -370,16 +359,11 @@ router.post('/upgrade', auth, async (req, res) => {
         user.walletBalance -= upgradeCost;
         await user.save();
 
-        // Cancel current investment
-        const currentInvestment = await Investment.findOne({ 
-            user: req.user.id, 
-            status: 'active' 
-        });
-
-        if (currentInvestment) {
-            currentInvestment.status = 'cancelled';
-            await currentInvestment.save();
-        }
+        // Bulletproof Cleanup: Cancel ALL existing active investments
+        await Investment.updateMany(
+            { user: req.user.id, status: 'active' },
+            { $set: { status: 'cancelled' } }
+        );
 
         // Create new investment
         const newInvestment = await createInvestment(user._id, selectedPlan);
@@ -396,7 +380,7 @@ router.post('/upgrade', auth, async (req, res) => {
         // Update user subscription
         user.currentPlan = planName;
         user.planActivatedAt = new Date();
-        user.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        user.planExpiresAt = new Date(Date.now() + (selectedPlan.durationDays || 30) * 24 * 60 * 60 * 1000);
         user.subscriptionStatus = 'active';
         await user.save();
 
@@ -424,7 +408,6 @@ router.post('/callback', async (req, res) => {
         const responseData = req.body;
         const orderId = req.query.orderId || responseData.TransactionID;
 
-        // Verify payment response
         const { verifyResponseHash } = require('../utils/paymentGateway');
         const isTestMode = process.env.PAYMENT_MODE === 'TEST';
         
@@ -432,25 +415,34 @@ router.post('/callback', async (req, res) => {
             return res.status(400).json({ error: 'Invalid payment response hash' });
         }
 
-        // Find user with pending plan purchase
         const user = await User.findOne({ 'pendingPlanPurchase.transactionId': orderId });
         if (!user) {
             return res.status(404).json({ error: 'User not found for this transaction' });
         }
 
         const pendingPurchase = user.pendingPlanPurchase;
-        const selectedPlan = PLANS[pendingPurchase.planName];
+        
+        // Fetch pending plan from DB or config
+        let selectedPlan = await Plan.findOne({ name: pendingPurchase.planName });
+        if (!selectedPlan) {
+            const { PLANS } = require('../config/plans');
+            selectedPlan = PLANS[pendingPurchase.planName];
+        }
 
         if (responseData.Status === 'SUCCESS' || responseData.Status === 'APPROVED') {
-            // Use a transaction to ensure all database operations are atomic
             const session = await mongoose.startSession();
             session.startTransaction();
 
             try {
-                // Create investment
+                // Bulletproof Cleanup: Clear any active investments before applying the paid one
+                await Investment.updateMany(
+                    { user: user._id, status: 'active' },
+                    { $set: { status: 'cancelled' } },
+                    { session }
+                );
+
                 const newInvestment = await createInvestment(user._id, selectedPlan, session);
                 
-                // Record transaction
                 await Transaction.create([{
                     user: user._id,
                     type: 'plan_purchase',
@@ -459,16 +451,14 @@ router.post('/callback', async (req, res) => {
                     description: `Purchased ${pendingPurchase.planName} plan`
                 }], { session });
 
-                // Update user subscription status
                 user.currentPlan = pendingPurchase.planName;
                 user.planActivatedAt = new Date();
-                user.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                user.planExpiresAt = new Date(Date.now() + (selectedPlan.durationDays || 30) * 24 * 60 * 60 * 1000);
                 user.hasCompletedFirstPurchase = true;
                 user.subscriptionStatus = 'active';
                 user.pendingPlanPurchase = undefined;
                 await user.save({ session });
 
-                // Create notification for plan subscription
                 await Notification.create([{
                     user: user._id,
                     type: 'plan_subscribed',
@@ -488,7 +478,6 @@ router.post('/callback', async (req, res) => {
                 throw err;
             }
         } else {
-            // Payment failed, clean up
             user.pendingPlanPurchase = undefined;
             await user.save();
 
@@ -511,13 +500,12 @@ async function createInvestment(userId, plan, session = null) {
         plan: {
             name: plan.name,
             price: plan.price,
-            dailySales: plan.dailyMaxSales,
+            dailySales: plan.dailyMaxSales || 5,
             returnRate: plan.returnPercentage,
-            dailyMinSales: plan.dailyMinSales,
-            dailyMaxSales: plan.dailyMaxSales,
-            totalItems: plan.totalItems
+            dailyMinSales: plan.dailyMinSales || 2,
+            dailyMaxSales: plan.dailyMaxSales || 5
         },
-        totalStock: plan.totalItems,
+        totalStock: 100,
         startDate: new Date(),
         lastProcessedDate: new Date(),
         itemsSold: 0,

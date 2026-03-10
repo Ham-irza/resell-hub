@@ -4,34 +4,7 @@ const auth = require('../middleware/authMiddleware');
 const Investment = require('../models/Investment');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
-
-// --- 1. PLANS CONFIGURATION (Matches your Plan Model) ---
-const PLANS = {
-    "Starter": { 
-        name: "Starter", 
-        price: 50000, 
-        returnPercentage: 4.0, 
-        totalItems: 100,       
-        dailyMinSales: 2,      
-        dailyMaxSales: 5       
-    },
-    "Growth": { 
-        name: "Growth", 
-        price: 100000, 
-        returnPercentage: 4.5, 
-        totalItems: 250,       
-        dailyMinSales: 5,
-        dailyMaxSales: 10
-    },
-    "Premium": { 
-        name: "Premium", 
-        price: 200000, 
-        returnPercentage: 5.0, 
-        totalItems: 600,       
-        dailyMinSales: 15,
-        dailyMaxSales: 30
-    }
-};
+const Plan = require('../models/Plan');
 
 // @route   GET api/investments/active
 router.get('/active', auth, async (req, res) => {
@@ -46,7 +19,7 @@ router.get('/active', auth, async (req, res) => {
         }
 
         // Get stock limit outside the block for use in response
-        const stockLimit = investment.totalStock || investment.plan.totalItems || 100;
+        const stockLimit = investment.totalStock || 100;
 
         // --- SIMULATION LOGIC (only run once per day) ---
         const now = new Date();
@@ -157,8 +130,8 @@ router.post('/buy', auth, async (req, res) => {
     try {
         const { planName } = req.body; 
 
-        // 1. Validate the Plan Name
-        const selectedPlan = PLANS[planName];
+        // 1. Validate the Plan Name (from database)
+        const selectedPlan = await Plan.findOne({ name: planName });
         if (!selectedPlan) {
             return res.status(400).json({ msg: "Invalid Plan Selected" });
         }
@@ -180,19 +153,18 @@ router.post('/buy', auth, async (req, res) => {
                 price: selectedPlan.price,
                 
                 // MAPPING 1: Schema wants 'dailySales', we give it the average or max
-                dailySales: selectedPlan.dailyMaxSales, 
+                dailySales: selectedPlan.dailyMaxSales || 5, 
                 
                 // MAPPING 2: Schema wants 'returnRate', we give it 'returnPercentage'
                 returnRate: selectedPlan.returnPercentage,
                 
                 // Keep these for future reference if schema allows
-                dailyMinSales: selectedPlan.dailyMinSales,
-                dailyMaxSales: selectedPlan.dailyMaxSales,
-                totalItems: selectedPlan.totalItems
+                dailyMinSales: selectedPlan.dailyMinSales || 2,
+                dailyMaxSales: selectedPlan.dailyMaxSales || 5
             },
             
-            // Map totalItems to totalStock
-            totalStock: selectedPlan.totalItems,
+            // Set a default stock limit since totalItems is no longer available
+            totalStock: 100,
             
             startDate: new Date(),
             lastProcessedDate: new Date(),
