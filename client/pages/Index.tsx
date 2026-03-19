@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
-import { Check, Zap, TrendingUp, Wallet, Users, Shield, ShoppingCart, Clock, ArrowRight } from "lucide-react";
-import { useLocation } from "wouter";
+import { Check, Zap, TrendingUp, Wallet, Users, Shield, ShoppingCart, Clock, ArrowRight, Phone, X } from "lucide-react";
+import { useLocation, Link } from "wouter";
 
 export default function Index() {
   const [, setLocation] = useLocation();
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
 
   const handleSignUp = () => {
     setLocation("/auth");
@@ -184,6 +186,121 @@ export default function Index() {
         </div>
       </section>
 
+      {/* FAQ Section */}
+      <section id="faq" className="py-16 md:py-24 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Everything you need to know about eGrocify Reseller Center
+            </p>
+          </div>
+
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* FAQ Item 1 */}
+            <div className="border border-border rounded-lg p-6">
+              <h3 className="text-lg font-bold text-foreground mb-3 flex items-center gap-3">
+                <Shield className="w-5 h-5 text-primary" />
+                What is eGrocify Reseller Center?
+              </h3>
+              <p className="text-muted-foreground">
+                It's Pakistan's first AI-powered dropshipping platform for reselling premium products (mainly phone cases and accessories). The AI handles the entire workflow automatically — from product selection to selling within set periods (e.g., auto-sold in 30 days in some models), fulfillment, and payouts. You don't need to build/customize a store, market products yourself, manage stock, or deal with shipping. Sign up for free at seller.egrocify.com.
+              </p>
+            </div>
+
+            {/* FAQ Item 2 */}
+            <div className="border border-border rounded-lg p-6">
+              <h3 className="text-lg font-bold text-foreground mb-3 flex items-center gap-3">
+                <Users className="w-5 h-5 text-primary" />
+                How do I join and is it free?
+              </h3>
+              <p className="text-muted-foreground">
+                Yes — completely free to create a Basic account. Just visit seller.egrocify.com, sign up (quick process), and start. No upfront fees, inventory investment, or limits mentioned. It's beginner-friendly for anyone in Pakistan (influencers, TikTokers, marketers, or side-hustlers).
+              </p>
+            </div>
+
+            {/* FAQ Item 3 */}
+            <div className="border border-border rounded-lg p-6">
+              <h3 className="text-lg font-bold text-foreground mb-3 flex items-center gap-3">
+                <ShoppingCart className="w-5 h-5 text-primary" />
+                Who is this for?
+              </h3>
+              <p className="text-muted-foreground">
+                Perfect for people in Pakistan wanting passive/semi-automated online income. Over 5,000+ active resellers reportedly use it. Great if you want to resell trending phone accessories without the usual hassle.
+              </p>
+            </div>
+
+            {/* FAQ Item 4 */}
+            <div className="border border-border rounded-lg p-6">
+              <h3 className="text-lg font-bold text-foreground mb-3 flex items-center gap-3">
+                <Zap className="w-5 h-5 text-primary" />
+                How does the AI-Automated Workflow work?
+              </h3>
+              <p className="text-muted-foreground">
+                Egrocify uses AI technology to automate dropshipping: You select/access products from their marketplace/catalog (50,000+ items sold claimed), and the system handles the rest — auto-marketing elements, order processing, fulfillment (packing + shipping), and even auto-selling products within timelines in some workflows. Profits go to your wallet instantly or on fast 24/7 payouts. No manual store setup, no customer service for logistics, no shipping management required.
+              </p>
+            </div>
+
+            {/* FAQ Item 5 */}
+            <div className="border border-border rounded-lg p-6">
+              <h3 className="text-lg font-bold text-foreground mb-3 flex items-center gap-3">
+                <Clock className="w-5 h-5 text-primary" />
+                Do I need to customize a store, market products, or handle shipping?
+              </h3>
+              <p className="text-muted-foreground">
+                No — that's the key benefit. All automation is done via the AI workflow: No store building/customization needed (use their system or promote simply). Marketing is streamlined/minimized (focus on sharing if you want, but AI assists). Shipping, inventory, packing — fully handled by the platform/suppliers. You just onboard, select products/packages, and earn from sales.
+              </p>
+            </div>
+
+            {/* FAQ Item 6 */}
+            <div className="border border-border rounded-lg p-6">
+              <h3 className="text-lg font-bold text-foreground mb-3 flex items-center gap-3">
+                <TrendingUp className="w-5 h-5 text-primary" />
+                What products can I resell?
+              </h3>
+              <p className="text-muted-foreground">
+                Primarily premium/trending phone accessories: MagSafe clear cases, aesthetic wavy cases, glitter/shimmer cases, diamond/bling cases, silicon protectors, and more for iPhone & Samsung. The catalog features stylish, protective items with discounts (e.g., 28–64% off retail for good margins).
+              </p>
+            </div>
+
+            {/* FAQ Item 7 */}
+            <div className="border border-border rounded-lg p-6">
+              <h3 className="text-lg font-bold text-foreground mb-3 flex items-center gap-3">
+                <Wallet className="w-5 h-5 text-primary" />
+                How much can I earn and how do payouts work?
+              </h3>
+              <p className="text-muted-foreground">
+                Average profit around 15% per sale (platform claims), with potential to scale. Earnings depend on volume — promotions highlight growing income easily. Some packages/models promise products auto-sold in 30 days with instant wallet credits. Fast and easy — 24/7 payouts to your wallet, then withdraw (likely via local methods like bank/JazzCash). Instant profit credits after sales/fulfillment.
+              </p>
+            </div>
+
+            {/* FAQ Item 8 */}
+            <div className="border border-border rounded-lg p-6">
+              <h3 className="text-lg font-bold text-foreground mb-3 flex items-center gap-3">
+                <Users className="w-5 h-5 text-primary" />
+                Is there a referral program?
+              </h3>
+              <p className="text-muted-foreground">
+                Yes — refer others to join (via your link), and earn commissions (e.g., up to PKR 5,000 per successful referral, heavily promoted).
+              </p>
+            </div>
+
+            {/* FAQ Item 9 */}
+            <div className="border border-border rounded-lg p-6">
+              <h3 className="text-lg font-bold text-foreground mb-3 flex items-center gap-3">
+                <Shield className="w-5 h-5 text-primary" />
+                How do I get help and is it beginner-friendly?
+              </h3>
+              <p className="text-muted-foreground">
+                After signup, use the dashboard for support. Or DM/message via their Facebook/Instagram (e.g., @egrocifyresellercenter or Egrocify pages) — they respond actively with video guides and details. Yes — low/no risk (no inventory), local focus (PKR, fast delivery), and AI automation makes it one of the simplest ways to start reselling phone accessories. Ideal for Karachi/Pakistan users wanting automated side income.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-16 md:py-24 bg-primary">
         <div className="container mx-auto px-4 text-center">
@@ -204,11 +321,73 @@ export default function Index() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-muted/50 border-t border-border py-8">
-        <div className="container mx-auto px-4 text-center text-muted-foreground">
-          <p>&copy; 2024 eGrocify. All rights reserved.</p>
+      <footer className="bg-muted/50 border-t border-border py-12">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-wrap justify-center items-center gap-6 md:gap-10 mb-8 text-sm md:text-base text-muted-foreground">
+            <Link href="/terms" className="hover:text-primary transition-colors cursor-pointer">
+              Terms & Conditions
+            </Link>
+            <Link href="/privacy" className="hover:text-primary transition-colors cursor-pointer">
+              Privacy Policy
+            </Link>
+            <Link href="/refund" className="hover:text-primary transition-colors cursor-pointer">
+              Refund & Return Policy
+            </Link>
+            {/* Replaced Link with a Button for the Modal */}
+            <button 
+              onClick={() => setIsContactModalOpen(true)}
+              className="hover:text-primary transition-colors cursor-pointer"
+            >
+              Contact Us
+            </button>
+          </div>
+          <div className="text-center text-sm text-muted-foreground">
+            <p>&copy; {new Date().getFullYear()} eGrocify. All rights reserved.</p>
+          </div>
         </div>
       </footer>
+
+      {/* Contact Modal */}
+      {isContactModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm transition-opacity"
+          onClick={() => setIsContactModalOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-xl p-8 max-w-sm w-full relative text-center border border-border animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setIsContactModalOpen(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors p-1"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Phone className="w-8 h-8 text-primary" />
+            </div>
+            
+            <h3 className="text-2xl font-bold text-foreground mb-2">Get in Touch</h3>
+            <p className="text-muted-foreground mb-6">
+              Have questions? Reach out to our support team directly.
+            </p>
+            
+            <div className="bg-muted/50 py-4 px-6 rounded-lg border border-border">
+              <a 
+                href="tel:03005443718" 
+                className="text-2xl font-bold text-primary tracking-wide hover:underline"
+              >
+                0300 5443718
+              </a>
+            </div>
+            <p className="text-xs text-muted-foreground mt-4">
+              Available via Phone & WhatsApp
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,12 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShieldCheck, Check, X, Search, MoreHorizontal, Package, Plus, Trash2,
   Loader2, Bell, Clock, LogOut, ArrowUpRight, ArrowDownLeft, RefreshCw, Users, ChevronDown, List, 
-  Image as ImageIcon, UploadCloud, AlertTriangle, ShoppingCart, User, Mail, Phone, Truck, Menu
+  Image as ImageIcon, UploadCloud, AlertTriangle, ShoppingCart, User, Mail, Phone, Truck, Menu, Edit
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from 'wouter'; 
 import { useToast } from "@/hooks/use-toast"; 
-// import logo from "../src/assets/egrocifylogo.png"; // Uncomment if needed
 
 // --- COMPONENTS ---
 
@@ -127,6 +126,7 @@ export default function AdminDashboard() {
   // UI States
   const [deleteId, setDeleteId] = useState<string | null>(null); 
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [editingProduct, setEditingProduct] = useState<any | null>(null); // State for editing stock
   const [orderSearch, setOrderSearch] = useState("");
   const [visibleCount, setVisibleCount] = useState(10); 
   
@@ -134,6 +134,11 @@ export default function AdminDashboard() {
   const [newProduct, setNewProduct] = useState({ name: '', price: '', quantity: '', description: '', image: '', roi: '', trendy: false, stores: [], tier: 1 });
   const [stores, setStores] = useState<any[]>([]);
   const [newStoreName, setNewStoreName] = useState('');
+  const [plans, setPlans] = useState<any[]>([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [referralConfig, setReferralConfig] = useState({
+    referralBonusCap: 10000
+  });
 
   const [, setLocation] = useLocation();
 
@@ -179,7 +184,6 @@ export default function AdminDashboard() {
 
     } catch (err) {
       console.error(err);
-      // Optional: handleLogout(); 
     } finally {
       setLoading(false);
     }
@@ -187,7 +191,111 @@ export default function AdminDashboard() {
 
   useEffect(() => { loadData(); }, []);
 
-  // --- ACTIONS ---
+  // Load plans and referral config
+  useEffect(() => {
+    const loadAdminData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const plansRes = await fetch('/api/admin/plans', { headers: { 'x-auth-token': token } });
+        if (plansRes.ok) {
+          const plansData = await plansRes.json();
+          setPlans(plansData || []);
+        }
+
+        const referralRes = await fetch('/api/admin/referral-config', { headers: { 'x-auth-token': token } });
+        if (referralRes.ok) {
+          const referralData = await referralRes.json();
+          setReferralConfig(referralData);
+        }
+      } catch (err) {
+        console.error('Failed to load admin data:', err);
+      } finally {
+        setPlansLoading(false);
+      }
+    };
+
+    loadAdminData();
+  }, []);
+
+  const updatePlanField = (planName: string, field: string, value: any) => {
+    setPlans(prev => prev.map(plan => 
+      plan.name === planName ? { ...plan, [field]: value } : plan
+    ));
+  };
+
+  const savePlan = async (planName: string) => {
+    const token = localStorage.getItem('token');
+    const plan = plans.find(p => p.name === planName);
+    if (!plan) return;
+
+    try {
+      const res = await fetch(`/api/admin/plans/${planName}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'x-auth-token': token || '' 
+        },
+        body: JSON.stringify({
+          price: Number(plan.price),
+          returnPercentage: Number(plan.returnPercentage),
+          durationDays: Number(plan.durationDays)
+        })
+      });
+
+      if (res.ok) {
+        const updatedPlan = await res.json();
+        setPlans(prev => prev.map(p => p.name === planName ? updatedPlan : p));
+        toast({ title: "Success", description: `Plan ${planName} updated successfully` });
+      } else {
+        const error = await res.json();
+        toast({ variant: "destructive", title: "Error", description: error.message || "Failed to update plan" });
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to update plan" });
+    }
+  };
+
+  const resetPlan = (planName: string) => {
+    const defaults = {
+      'Starter': { price: 50000, returnPercentage: 4.0, durationDays: 30 },
+      'Growth': { price: 100000, returnPercentage: 4.5, durationDays: 30 },
+      'Premium': { price: 200000, returnPercentage: 5.0, durationDays: 30 }
+    };
+
+    setPlans(prev => prev.map(plan => 
+      plan.name === planName ? { ...plan, ...defaults[planName as keyof typeof defaults] } : plan
+    ));
+  };
+
+  const saveReferralConfig = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch('/api/admin/referral-config', {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'x-auth-token': token || '' 
+        },
+        body: JSON.stringify(referralConfig)
+      });
+
+      if (res.ok) {
+        toast({ title: "Success", description: "Referral configuration updated successfully" });
+      } else {
+        toast({ variant: "destructive", title: "Error", description: "Failed to update referral configuration" });
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to update referral configuration" });
+    }
+  };
+
+  const resetReferralConfig = () => {
+    setReferralConfig({
+      referralBonusCap: 10000
+    });
+  };
 
   const handleAction = async (id: string, status: 'approved' | 'rejected') => {
     const token = localStorage.getItem('token');
@@ -272,6 +380,35 @@ export default function AdminDashboard() {
         }
     } catch(err) { 
         console.error(err); 
+    }
+  };
+
+  // NEW: Update Product Stock Function
+  const handleUpdateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+    const token = localStorage.getItem('token');
+    
+    try {
+      const res = await fetch(`/api/products/${editingProduct._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-auth-token': token || '' },
+        body: JSON.stringify({
+          price: Number(editingProduct.price),
+          quantity: Number(editingProduct.quantity)
+        })
+      });
+
+      if(res.ok) {
+        toast({ title: "Updated", description: "Product stock updated successfully." });
+        setEditingProduct(null);
+        loadData(); // Refresh the product list
+      } else {
+        toast({ variant: "destructive", title: "Error", description: "Failed to update product." });
+      }
+    } catch(err) {
+      console.error(err);
+      toast({ variant: "destructive", title: "Error", description: "An error occurred." });
     }
   };
 
@@ -371,7 +508,7 @@ export default function AdminDashboard() {
 
         {/* DESKTOP TABS */}
         <div className="hidden lg:flex gap-2 bg-slate-100/50 p-1 rounded-lg">
-          {['overview', 'inventory', 'orders', 'transactions', 'withdrawals'].map(tab => (
+          {['overview', 'inventory', 'orders', 'transactions', 'withdrawals', 'plans', 'referrals'].map(tab => (
               <Button 
                 key={tab}
                 variant="ghost" size="sm" onClick={() => setActiveTab(tab)}
@@ -397,7 +534,7 @@ export default function AdminDashboard() {
       {/* MOBILE SIDEBAR */}
       <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-emerald-100 transform transition-transform duration-300 lg:hidden pt-20 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-4 space-y-2">
-             {['overview', 'inventory', 'orders', 'transactions', 'withdrawals'].map(tab => (
+             {['overview', 'inventory', 'orders', 'transactions', 'withdrawals', 'plans', 'referrals'].map(tab => (
               <Button 
                 key={tab}
                 variant="ghost" 
@@ -551,6 +688,8 @@ export default function AdminDashboard() {
                                                     <td className="p-3">{p.quantity}</td>
                                                     <td className="p-3 text-emerald-600">{p.roi}%</td>
                                                     <td className="p-3 text-right">
+                                                        {/* EDIT BUTTON ADDED HERE */}
+                                                        <Button size="icon" variant="ghost" onClick={() => setEditingProduct(p)} className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 mr-1"><Edit className="w-4 h-4" /></Button>
                                                         <Button size="icon" variant="ghost" onClick={() => initiateDelete(p._id)} className="text-slate-400 hover:text-red-500 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                                                     </td>
                                                 </tr>
@@ -572,7 +711,11 @@ export default function AdminDashboard() {
                                                 <div className="text-sm font-semibold text-emerald-600 mt-1">PKR {p.price}</div>
                                                 <div className="flex justify-between items-center mt-2">
                                                     <span className="text-xs text-slate-400">Stock: {p.quantity}</span>
-                                                    <Button size="sm" variant="ghost" onClick={() => initiateDelete(p._id)} className="h-8 w-8 p-0 text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                                                    <div className="flex gap-1">
+                                                        {/* EDIT BUTTON ADDED HERE */}
+                                                        <Button size="sm" variant="ghost" onClick={() => setEditingProduct(p)} className="h-8 w-8 p-0 text-emerald-600 hover:bg-emerald-50"><Edit className="w-4 h-4" /></Button>
+                                                        <Button size="sm" variant="ghost" onClick={() => initiateDelete(p._id)} className="h-8 w-8 p-0 text-red-500 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -769,7 +912,323 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* --- TAB 6: PLAN MANAGEMENT --- */}
+        {activeTab === "plans" && (
+          <div className="bg-white border border-emerald-100 rounded-xl shadow-sm overflow-hidden animate-in fade-in duration-500">
+            <div className="p-6 border-b border-emerald-100">
+                <h2 className="text-lg font-bold text-slate-800">Plan Management</h2>
+                <p className="text-sm text-slate-500 mt-1">Update plan prices, return percentages, and other details</p>
+            </div>
+            <div className="p-6">
+              {plansLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {plans.length > 0 ? (
+                    plans.map((plan: any) => (
+                      <div key={plan.name} className="border border-slate-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                        {/* Plan Card Header */}
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="text-lg font-bold text-slate-800">{plan.name}</h3>
+                            <p className="text-sm text-slate-500 mt-1">Investment Plan</p>
+                          </div>
+                          <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-sm rounded-full font-medium">Active</span>
+                        </div>
+
+                        {/* Plan Details */}
+                        <div className="space-y-3 mb-4">
+                          <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                            <span className="text-sm text-slate-600">Price</span>
+                            <span className="font-bold text-emerald-600">PKR {plan.price.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                            <span className="text-sm text-slate-600">Return</span>
+                            <span className="font-bold text-emerald-600">{plan.returnPercentage}%</span>
+                          </div>
+                          <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                            <span className="text-sm text-slate-600">Duration</span>
+                            <span className="font-bold text-emerald-600">{plan.durationDays} days</span>
+                          </div>
+                        </div>
+
+                        {/* Edit Controls */}
+                        <div className="border-t border-slate-200 pt-4">
+                          <div className="grid grid-cols-2 gap-3 mb-3">
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Price (PKR)</label>
+                              <input 
+                                type="number"
+                                value={plan.price}
+                                onChange={(e) => updatePlanField(plan.name, 'price', parseFloat(e.target.value))}
+                                className="w-full p-2 border border-slate-200 rounded-md text-sm"
+                                min="0"
+                                step="1000"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Return %</label>
+                              <input 
+                                type="number"
+                                value={plan.returnPercentage}
+                                onChange={(e) => updatePlanField(plan.name, 'returnPercentage', parseFloat(e.target.value))}
+                                className="w-full p-2 border border-slate-200 rounded-md text-sm"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-3 mb-4">
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Duration (Days)</label>
+                              <input 
+                                type="number"
+                                value={plan.durationDays}
+                                onChange={(e) => updatePlanField(plan.name, 'durationDays', parseInt(e.target.value))}
+                                className="w-full p-2 border border-slate-200 rounded-md text-sm"
+                                min="1"
+                                step="1"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              onClick={() => savePlan(plan.name)}
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              Save Changes
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => resetPlan(plan.name)}
+                            >
+                              Reset
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    // Default plan cards when API returns empty
+                    [
+                      { name: 'Starter', price: 50000, returnPercentage: 4.0, durationDays: 30 },
+                      { name: 'Growth', price: 100000, returnPercentage: 4.5, durationDays: 30 },
+                      { name: 'Premium', price: 200000, returnPercentage: 5.0, durationDays: 30 }
+                    ].map((defaultPlan) => (
+                      <div key={defaultPlan.name} className="border border-slate-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                        {/* Plan Card Header */}
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="text-lg font-bold text-slate-800">{defaultPlan.name}</h3>
+                            <p className="text-sm text-slate-500 mt-1">Investment Plan</p>
+                          </div>
+                          <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-sm rounded-full font-medium">Active</span>
+                        </div>
+
+                        {/* Plan Details */}
+                        <div className="space-y-3 mb-4">
+                          <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                            <span className="text-sm text-slate-600">Price</span>
+                            <span className="font-bold text-emerald-600">PKR {defaultPlan.price.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                            <span className="text-sm text-slate-600">Return</span>
+                            <span className="font-bold text-emerald-600">{defaultPlan.returnPercentage}%</span>
+                          </div>
+                          <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                            <span className="text-sm text-slate-600">Duration</span>
+                            <span className="font-bold text-emerald-600">{defaultPlan.durationDays} days</span>
+                          </div>
+                        </div>
+
+                        {/* Edit Controls */}
+                        <div className="border-t border-slate-200 pt-4">
+                          <div className="grid grid-cols-2 gap-3 mb-3">
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Price (PKR)</label>
+                              <input 
+                                type="number"
+                                value={defaultPlan.price}
+                                onChange={(e) => updatePlanField(defaultPlan.name, 'price', parseFloat(e.target.value))}
+                                className="w-full p-2 border border-slate-200 rounded-md text-sm"
+                                min="0"
+                                step="1000"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Return %</label>
+                              <input 
+                                type="number"
+                                value={defaultPlan.returnPercentage}
+                                onChange={(e) => updatePlanField(defaultPlan.name, 'returnPercentage', parseFloat(e.target.value))}
+                                className="w-full p-2 border border-slate-200 rounded-md text-sm"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-3 mb-4">
+                            <div>
+                              <label className="block text-xs text-slate-500 mb-1">Duration (Days)</label>
+                              <input 
+                                type="number"
+                                value={defaultPlan.durationDays}
+                                onChange={(e) => updatePlanField(defaultPlan.name, 'durationDays', parseInt(e.target.value))}
+                                className="w-full p-2 border border-slate-200 rounded-md text-sm"
+                                min="1"
+                                step="1"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              onClick={() => savePlan(defaultPlan.name)}
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              Save Changes
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => resetPlan(defaultPlan.name)}
+                            >
+                              Reset
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* --- TAB 7: REFERRAL CONFIGURATION --- */}
+        {activeTab === "referrals" && (
+          <div className="bg-white border border-emerald-100 rounded-xl shadow-sm overflow-hidden animate-in fade-in duration-500">
+            <div className="p-6 border-b border-emerald-100">
+                <h2 className="text-lg font-bold text-slate-800">Referral Configuration</h2>
+                <p className="text-sm text-slate-500 mt-1">Configure referral bonus settings and payment rules</p>
+            </div>
+            <div className="p-6">
+              {plansLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                </div>
+              ) : (
+                <div className="max-w-md space-y-6">
+                  <div className="grid gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Bonus Amount (PKR)</label>
+                      <input 
+                        type="number"
+                        value={referralConfig.referralBonusCap || ''}
+                        onChange={(e) => setReferralConfig({ referralBonusCap: parseFloat(e.target.value) || 0 })}
+                        className="w-full p-3 border border-slate-200 rounded-md focus:ring-2 focus:ring-emerald-500"
+                        min="0"
+                        step="100"
+                        placeholder="e.g. 10000"
+                      />
+                      <p className="text-xs text-slate-500 mt-1">Fixed bonus amount awarded to the referrer per successful user purchase.</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                    <h4 className="font-semibold text-slate-800 mb-2">Current Configuration</h4>
+                    <div className="text-sm space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Reward Strategy:</span>
+                        <span className="font-medium text-slate-800">Fixed Amount</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Payout Value:</span>
+                        <span className="font-bold text-emerald-600">
+                          PKR {referralConfig.referralBonusCap?.toLocaleString() || 0}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button 
+                      onClick={saveReferralConfig}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                    >
+                      Save Configuration
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      onClick={resetReferralConfig}
+                      className="border-slate-200 text-slate-600 hover:bg-slate-50"
+                    >
+                      Reset to Defaults
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* --- UPDATE PRODUCT MODAL --- */}
+      {editingProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in p-4">
+            <div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full border border-slate-200">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Edit className="w-5 h-5 text-emerald-600"/> Update Product</h3>
+                    <button onClick={() => setEditingProduct(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+                </div>
+                
+                <form onSubmit={handleUpdateProduct} className="space-y-4">
+                    <div>
+                        <label className="text-xs font-semibold text-slate-500 uppercase">Product Name</label>
+                        <input className="w-full p-2 border border-slate-200 rounded-md bg-slate-50 text-slate-500" value={editingProduct.name} disabled />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Price (PKR)</label>
+                            <input 
+                                type="number" 
+                                className="w-full p-2 border rounded-md focus:ring-2 focus:ring-emerald-500" 
+                                value={editingProduct.price} 
+                                onChange={e => setEditingProduct({...editingProduct, price: e.target.value})} 
+                                required 
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Stock Qty</label>
+                            <input 
+                                type="number" 
+                                className="w-full p-2 border rounded-md focus:ring-2 focus:ring-emerald-500" 
+                                value={editingProduct.quantity} 
+                                onChange={e => setEditingProduct({...editingProduct, quantity: e.target.value})} 
+                                required 
+                            />
+                        </div>
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                        <Button type="button" variant="outline" className="flex-1" onClick={() => setEditingProduct(null)}>Cancel</Button>
+                        <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white">Save Changes</Button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      )}
 
       {/* --- DELETE MODAL --- */}
       {deleteId && (

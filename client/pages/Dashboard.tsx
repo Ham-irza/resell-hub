@@ -281,6 +281,9 @@ const UserDashboardContent = ({ user, onLogout, showPlanPrompt, onPlanPromptClos
   
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
+  // Add the state for referral bonus
+  const [referralBonus, setReferralBonus] = useState(10000);
+
   // Function to refresh user data
   const refreshUserData = async () => {
     const token = localStorage.getItem('token');
@@ -290,8 +293,6 @@ const UserDashboardContent = ({ user, onLogout, showPlanPrompt, onPlanPromptClos
       const userRes = await fetch('/api/auth/user', { headers: { 'x-auth-token': token } });
       if(userRes.ok) {
         const userData = await userRes.json();
-        // Update the user state with fresh data
-        // This would need to be passed up to the parent component
         console.log('User data refreshed');
       }
     } catch (err) {
@@ -353,11 +354,25 @@ const UserDashboardContent = ({ user, onLogout, showPlanPrompt, onPlanPromptClos
     }
   };
 
+  // Fetch the Referral Config amount set by Admin
+  const fetchReferralConfig = async () => {
+      try {
+          const res = await fetch('/api/plans/referral-config');
+          if (res.ok) {
+              const data = await res.json();
+              setReferralBonus(data.referralBonusCap || 10000);
+          }
+      } catch(err) {
+          console.error("Failed to fetch referral config", err);
+      }
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchOrders();
     fetchActiveOrders();
     fetchTransactionHistory();
+    fetchReferralConfig(); // Fetch the dynamic bonus on load
   }, []);
   
   // Fetch transaction history for balance calculation breakdown
@@ -986,10 +1001,10 @@ const UserDashboardContent = ({ user, onLogout, showPlanPrompt, onPlanPromptClos
                     <h2 className="text-2xl font-bold text-slate-800 mb-2">Refer & Earn</h2>
                     <p className="text-slate-600 mb-6">Share your unique link. Earn commission on every new reseller who joins via your link.</p>
                     
-                    {/* Commission Display */}
+                    {/* Dynamic Commission Display */}
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 mb-6">
                         <p className="text-sm text-emerald-600 mb-1">Commission per Referral</p>
-                        <p className="text-3xl font-bold text-emerald-700">PKR 10,000</p>
+                        <p className="text-3xl font-bold text-emerald-700">PKR {referralBonus.toLocaleString()}</p>
                     </div>
                     
                     <div className="flex gap-2 items-center justify-center max-w-lg mx-auto">
@@ -1065,7 +1080,7 @@ export default function UserDashboard() {
       
       setUser(userData);
       
-  // Check if user needs to select a plan (first login or no active plan)
+      // Check if user needs to select a plan (first login or no active plan)
       const needsPlan = !userData._planStatus || userData._planStatus.subscriptionStatus !== 'active';
       console.log('Plan status check:', {
         hasPlanStatus: !!userData._planStatus,

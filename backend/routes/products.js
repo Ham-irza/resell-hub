@@ -69,6 +69,35 @@ router.post('/', [auth, admin], async (req, res) => {
   }
 });
 
+// @route   PUT api/products/:id
+// @desc    Update a product (Admin Only) - Used for adding stock/updating details
+// @access  Private (Admin)
+router.put('/:id', [auth, admin], async (req, res) => {
+  try {
+    let product = await Product.findById(req.params.id);
+    
+    if (!product) {
+      return res.status(404).json({ msg: 'Product not found' });
+    }
+
+    // Use findByIdAndUpdate to apply the new changes. 
+    // { new: true } ensures it returns the newly updated document instead of the old one.
+    product = await Product.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body }, 
+      { new: true, runValidators: true }
+    );
+
+    res.json(product);
+  } catch (err) {
+    console.error(err.message);
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ msg: 'Product not found' });
+    }
+    res.status(500).send('Server Error');
+  }
+});
+
 // @route   DELETE api/products/:id
 // @desc    Delete a product (Admin Only)
 // @access  Private (Admin)

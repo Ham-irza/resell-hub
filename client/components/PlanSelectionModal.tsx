@@ -97,9 +97,9 @@ export function PlanSelectionModal({
   const getPlanBenefits = (plan: Plan) => {
     return [
       { icon: '📈', text: `${plan.returnPercentage}% monthly return` },
-      { icon: '📦', text: `${plan.totalItems} items to sell` },
       { icon: '💰', text: `${plan.dailyMinSales}-${plan.dailyMaxSales} daily sales` },
-      { icon: '⚡', text: '30-day automated selling' }
+      { icon: '⚡', text: `${plan.durationDays}-day investment cycle` },
+      { icon: '🔄', text: 'Automated selling process' }
     ];
   };
 
